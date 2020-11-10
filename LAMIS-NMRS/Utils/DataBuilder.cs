@@ -25,21 +25,23 @@ namespace Common
 
         List<Regimen> regimens;
         List<NmrsConcept> nmsConcepts;
+        List<Lab> labs;
         string rootDir;
 
         public DataBuilder()
-        {           
+        {
             rootDir = Directory.GetCurrentDirectory();
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
         }
-     
+
         public List<Patient> BuildPatientInfo(int itemsPerPage, int pageNumber)
         {
             var patients = new List<Patient>();
-       
+
             try
             {
                 regimens = GetRegimen();
+                labs = GetLabs();
                 nmsConcepts = new Utilities().GetConcepts();
 
                 if (!regimens.Any() || !nmsConcepts.Any())
@@ -52,18 +54,18 @@ namespace Common
                 {
                     connection.Open();
                     var q = "SELECT * FROM patient order by patient_id offset  " + ((pageNumber - 1) * itemsPerPage) + " rows fetch next " + itemsPerPage + " rows only;";
-                                       
+
                     using (NpgsqlCommand cmd = new NpgsqlCommand(q, connection))
                     {
                         using (NpgsqlDataReader reader = cmd.ExecuteReader())
                         {
                             if (reader.HasRows)
-                            {                                
+                            {
                                 while (reader.Read())
                                 {
-                                    var patient = new Patient 
-                                    { 
-                                        identifiers = new List<Identifiers>(), 
+                                    var patient = new Patient
+                                    {
+                                        identifiers = new List<Identifiers>(),
                                         person = new PatientDemography(),
                                         Encounters = new List<Encounter>()
                                     };
@@ -122,7 +124,7 @@ namespace Common
 
                                             var givenName = reader["other_names"];
                                             var surname = reader["surname"];
-                                            if(givenName != null && surname != null)
+                                            if (givenName != null && surname != null)
                                             {
                                                 var otherNames = givenName.ToString();
                                                 var familyName = surname.ToString();
@@ -136,7 +138,7 @@ namespace Common
                                                     };
 
                                                     pd.names = new List<PersonName> { name };
-                                                }                                                
+                                                }
                                             }
                                             var ageStr = reader["age"];
                                             if (ageStr != null)
@@ -144,10 +146,10 @@ namespace Common
                                                 var ageX = ageStr.ToString();
                                                 if (!string.IsNullOrEmpty(ageX))
                                                 {
-                                                    if(int.TryParse(ageX, out int age))
+                                                    if (int.TryParse(ageX, out int age))
                                                     {
                                                         pd.age = age;
-                                                    }                                                   
+                                                    }
                                                 }
                                             }
 
@@ -162,11 +164,11 @@ namespace Common
                                             }
 
                                             var adr = reader["address"];
-                                            if(adr != null)
+                                            if (adr != null)
                                             {
                                                 var addres1 = adr.ToString().Trim();
                                                 if (!string.IsNullOrEmpty(addres1))
-                                                {                                                
+                                                {
                                                     var address = new Personaddress
                                                     {
                                                         preferred = true,
@@ -175,13 +177,13 @@ namespace Common
                                                     };
 
                                                     var lgaR = reader["lga"];
-                                                    if(lgaR != null)
+                                                    if (lgaR != null)
                                                     {
                                                         var lga = lgaR.ToString().Trim();
                                                         if (!string.IsNullOrEmpty(lga))
                                                         {
                                                             address.cityVillage = lga;
-                                                        }                                                            
+                                                        }
                                                     }
 
                                                     var stateR = reader["state"];
@@ -197,16 +199,16 @@ namespace Common
                                                     pd.addresses = new List<Personaddress> { address };
                                                 }
                                             }
-                                            
+
                                             patient.person = pd;
 
                                             var artCommencement = BuiildArtCommencement(reader);
-                                            if(!string.IsNullOrEmpty(artCommencement.encounterType))
+                                            if (!string.IsNullOrEmpty(artCommencement.encounterType))
                                             {
                                                 patient.Encounters.Add(artCommencement);
                                             }
                                             var careCardAndVitals = BuildCareCardAndVitals(patientId, dobStr.ToString().Trim());
-                                            if(careCardAndVitals.Any())
+                                            if (careCardAndVitals.Any())
                                             {
                                                 careCardAndVitals.ForEach(e =>
                                                 {
@@ -215,7 +217,7 @@ namespace Common
                                                         patient.Encounters.Add(e);
                                                     }
                                                 });
-                                            }                                                                                    
+                                            }
 
                                             var careTermination = BuildCareTermination(reader);
                                             if (!string.IsNullOrEmpty(careTermination.encounterType))
@@ -240,15 +242,17 @@ namespace Common
                                                 });
                                             }
 
+                                            var labs = BuildLab(patientId);
                                             patients.Add(patient);
                                         }
                                     }
-                                                                        
+
                                 }
                             }
                         }
                     }
                 }
+
                 return patients;
             }
             catch (Exception ex)
@@ -304,11 +308,11 @@ namespace Common
                                 var artS = artStrs.ElementAt(0);
                                 var fartStartDateObs = new Obs
                                 {
-                                    concept =artS.OMRSConceptID,
+                                    concept = artS.OMRSConceptID,
                                     value = artStartDate.ToString("yyyy-MM-dd"),
                                     groupMembers = new List<Obs>()
                                 };
-                                fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;                               
+                                fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;
                                 artCommencement.obs.Add(fartStartDateObs);
                             }
                         }
@@ -340,7 +344,7 @@ namespace Common
 
                         var whoStageObs = new Obs //WHO Stage at start
                         {
-                            concept =((int)WhoStage.concept).ToString(),
+                            concept = ((int)WhoStage.concept).ToString(),
                             value = ageAtStart > 14 ? ((int)WhoStage.adultStage1).ToString() : ((int)WhoStage.paedStage1).ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -368,7 +372,7 @@ namespace Common
                             // Current regimen Line
                             var currentRegLineObs = new Obs
                             {
-                                concept =((int)CurrentRegimenLine.concept).ToString(),
+                                concept = ((int)CurrentRegimenLine.concept).ToString(),
                                 value = rg.NMRSQuestionConceptID.ToString(),
                                 groupMembers = new List<Obs>()
                             };
@@ -379,7 +383,7 @@ namespace Common
                             // Regimen
                             var regimenObs = new Obs
                             {
-                                concept =rg.NMRSQuestionConceptID.ToString(),
+                                concept = rg.NMRSQuestionConceptID.ToString(),
                                 value = rg.NMRSAnswerConceptID.ToString(),
                                 groupMembers = new List<Obs>()
                             };
@@ -398,13 +402,13 @@ namespace Common
                 Console.WriteLine(message);
                 return new Encounter();
             }
-        }                
+        }
         public Encounter BuildCareTermination(NpgsqlDataReader reader)
         {
             try
             {
                 var careTermination = new Encounter
-                {                    
+                {
                     obs = new List<Obs>()
                 };
 
@@ -434,7 +438,7 @@ namespace Common
                                             var dateExit = dateExitX.ElementAt(0);
                                             var dateExitObs = new Obs
                                             {
-                                                concept =dateExit.OMRSConceptID,
+                                                concept = dateExit.OMRSConceptID,
                                                 value = dExit.ToString("yyyy-MM-dd"),
                                                 groupMembers = new List<Obs>()
                                             };
@@ -445,7 +449,7 @@ namespace Common
                                             //Reason for tracking
                                             var trackingObs = new Obs
                                             {
-                                                concept =((int)TrackingReason.concept).ToString(),
+                                                concept = ((int)TrackingReason.concept).ToString(),
                                                 value = ((int)TrackingReason.MissedPharmacyRefill).ToString(), //default
                                                 groupMembers = new List<Obs>()
                                             };
@@ -469,7 +473,7 @@ namespace Common
                                                         var dateTrackedX = dateExitX.ElementAt(0);
                                                         var dateTrackedObs = new Obs
                                                         {
-                                                            concept =dateTrackedX.OMRSConceptID,
+                                                            concept = dateTrackedX.OMRSConceptID,
                                                             value = dTract.ToString("yyyy-MM-dd"),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -493,7 +497,7 @@ namespace Common
                                                 {
                                                     var dateMissedObs = new Obs
                                                     {
-                                                        concept =((int)Concepts.DateMissedAppointment).ToString(),
+                                                        concept = ((int)Concepts.DateMissedAppointment).ToString(),
                                                         value = dMissed.ToString("yyyy-MM-dd"),
                                                         groupMembers = new List<Obs>()
                                                     };
@@ -513,7 +517,7 @@ namespace Common
                             {
                                 var ltfuObs = new Obs
                                 {
-                                    concept =((int)LTFU.concept).ToString(),
+                                    concept = ((int)LTFU.concept).ToString(),
                                     value = ((int)LTFU.Yes).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -523,7 +527,7 @@ namespace Common
 
                                 var reasonLtfuObs = new Obs
                                 {
-                                    concept =((int)ReasonForLTFU.concept).ToString(),
+                                    concept = ((int)ReasonForLTFU.concept).ToString(),
                                     value = ((int)ReasonForLTFU.Tracked_Not_Located).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -533,7 +537,7 @@ namespace Common
 
                                 var dateLtfuObs = new Obs
                                 {
-                                    concept =((int)Concepts.DateLTFU).ToString(),
+                                    concept = ((int)Concepts.DateLTFU).ToString(),
                                     value = careTermination.encounterDatetime,
                                     groupMembers = new List<Obs>()
                                 };
@@ -546,7 +550,7 @@ namespace Common
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept =((int)PrevExposed.concept).ToString(),
+                                    concept = ((int)PrevExposed.concept).ToString(),
                                     value = ((int)PrevExposed.Yes).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -556,7 +560,7 @@ namespace Common
 
                                 var reasonForTerminationObs = new Obs
                                 {
-                                    concept =((int)ReasonForTermination.concept).ToString(),
+                                    concept = ((int)ReasonForTermination.concept).ToString(),
                                     value = ((int)ReasonForTermination.Transferred_Out_To_Another_Facility).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -566,7 +570,7 @@ namespace Common
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
                                     value = careTermination.encounterDatetime,
                                     groupMembers = new List<Obs>()
                                 };
@@ -577,7 +581,7 @@ namespace Common
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept =((int)PrevExposed.concept).ToString(),
+                                    concept = ((int)PrevExposed.concept).ToString(),
                                     value = ((int)PrevExposed.Yes).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -587,7 +591,7 @@ namespace Common
 
                                 var reasonForTerminationObs = new Obs
                                 {
-                                    concept =((int)ReasonForTermination.concept).ToString(),
+                                    concept = ((int)ReasonForTermination.concept).ToString(),
                                     value = ((int)ReasonForTermination.Death).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -632,7 +636,7 @@ namespace Common
                                         }
                                         var causeOfDesthObs = new Obs
                                         {
-                                            concept =((int)ReasonForDeath.concept).ToString(),
+                                            concept = ((int)ReasonForDeath.concept).ToString(),
                                             value = conceptId.ToString(),
                                             groupMembers = new List<Obs>()
                                         };
@@ -644,7 +648,7 @@ namespace Common
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
                                     value = careTermination.encounterDatetime,
                                     groupMembers = new List<Obs>()
                                 };
@@ -655,7 +659,7 @@ namespace Common
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept =((int)PrevExposed.concept).ToString(),
+                                    concept = ((int)PrevExposed.concept).ToString(),
                                     value = ((int)PrevExposed.Yes).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -665,7 +669,7 @@ namespace Common
 
                                 var reasonForTerminationObs = new Obs
                                 {
-                                    concept =((int)ReasonForTermination.concept).ToString(),
+                                    concept = ((int)ReasonForTermination.concept).ToString(),
                                     value = ((int)ReasonForTermination.Discontinued_Care).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -675,7 +679,7 @@ namespace Common
 
                                 var reasonDiscontinuedCareObs = new Obs
                                 {
-                                    concept =((int)ReasonDiscontinuedCare.concept).ToString(),
+                                    concept = ((int)ReasonDiscontinuedCare.concept).ToString(),
                                     value = ((int)ReasonDiscontinuedCare.MovedOutOfArea).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -685,7 +689,7 @@ namespace Common
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
                                     value = careTermination.encounterDatetime,
                                     groupMembers = new List<Obs>()
                                 };
@@ -698,7 +702,7 @@ namespace Common
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept =((int)PrevExposed.concept).ToString(),
+                                    concept = ((int)PrevExposed.concept).ToString(),
                                     value = ((int)PrevExposed.No).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -708,7 +712,7 @@ namespace Common
 
                                 var referredForObs = new Obs
                                 {
-                                    concept =((int)ReferredFor.concept).ToString(),
+                                    concept = ((int)ReferredFor.concept).ToString(),
                                     value = ((int)ReferredFor.ADHERENCE_COUNSELING).ToString(),
                                     groupMembers = new List<Obs>()
                                 };
@@ -718,7 +722,7 @@ namespace Common
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
                                     value = careTermination.encounterDatetime,
                                     groupMembers = new List<Obs>()
                                 };
@@ -726,7 +730,7 @@ namespace Common
                                 careTermination.obs.Add(dateTerminatedObs);
                             }
 
-                            if(careTermination.obs.Any())
+                            if (careTermination.obs.Any())
                             {
                                 careTermination.encounterType = "ba6fb85e-8dc3-43e3-a269-59842cd2d364"; //tracking and termination
                                 careTermination.location = "b1a8b05e-3542-4037-bbd3-998ee9c40574"; //using in-patient ward for now
@@ -737,7 +741,7 @@ namespace Common
                         }
                     }
                 }
-                return !string.IsNullOrEmpty(careTermination.encounterType)? careTermination : new Encounter();
+                return !string.IsNullOrEmpty(careTermination.encounterType) ? careTermination : new Encounter();
             }
             catch (Exception ex)
             {
@@ -761,7 +765,7 @@ namespace Common
             };
 
             try
-            {                                               
+            {
                 var date_started = reader["date_started"];
                 DateTime artStartDate;
                 if (date_started != null)
@@ -780,7 +784,7 @@ namespace Common
                                 var artS = artStrs.ElementAt(0);
                                 var fartStartDateObs = new Obs
                                 {
-                                    concept =artS.OMRSConceptID,
+                                    concept = artS.OMRSConceptID,
                                     value = artStartDate.ToString("yyyy-MM-dd"),
                                     groupMembers = new List<Obs>()
                                 };
@@ -808,7 +812,7 @@ namespace Common
 
                             var enrolmentDateObs = new Obs
                             {
-                                concept =((int)Concepts.HivEnrolmentDate).ToString(),
+                                concept = ((int)Concepts.HivEnrolmentDate).ToString(),
                                 value = encDate.ToString("yyyy-MM-dd"),
                                 groupMembers = new List<Obs>()
                             };
@@ -817,7 +821,7 @@ namespace Common
                         }
                     }
                 }
-                
+
                 var date_confirmed_hiv = reader["date_confirmed_hiv"];
                 if (date_confirmed_hiv != null)
                 {
@@ -829,7 +833,7 @@ namespace Common
                         {
                             var hivConfirmDateObs = new Obs
                             {
-                                concept =((int)Concepts.HivConfirmationDate).ToString(),
+                                concept = ((int)Concepts.HivConfirmationDate).ToString(),
                                 value = confirmDate.ToString("yyyy-MM-dd"),
                                 groupMembers = new List<Obs>()
                             };
@@ -843,7 +847,7 @@ namespace Common
                 {
                     var hivConfirmDateObs = new Obs
                     {
-                        concept =((int)Concepts.HivConfirmationDate).ToString(),
+                        concept = ((int)Concepts.HivConfirmationDate).ToString(),
                         value = encDate.ToString("yyyy-MM-dd"),
                         groupMembers = new List<Obs>()
                     };
@@ -895,7 +899,7 @@ namespace Common
 
                         var careEntryPointObs = new Obs
                         {
-                            concept =((int)CareEntryPoint.concept).ToString(),
+                            concept = ((int)CareEntryPoint.concept).ToString(),
                             value = conceptId.ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -940,7 +944,7 @@ namespace Common
 
                         var maritalStatusObs = new Obs
                         {
-                            concept =((int)MaritalStatus.concept).ToString(),
+                            concept = ((int)MaritalStatus.concept).ToString(),
                             value = conceptId.ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -985,7 +989,7 @@ namespace Common
 
                         var educationObs = new Obs
                         {
-                            concept =((int)EducationLevel.concept).ToString(),
+                            concept = ((int)EducationLevel.concept).ToString(),
                             value = conceptId.ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -1016,7 +1020,7 @@ namespace Common
                                 break;
                             case "Retired":
                                 conceptId = (int)Occupation.Retired;
-                                break;                           
+                                break;
                             default:
                                 conceptId = (int)Occupation.Unemployed;
                                 break;
@@ -1024,7 +1028,7 @@ namespace Common
 
                         var occupationObs = new Obs
                         {
-                            concept =((int)Occupation.concept).ToString(),
+                            concept = ((int)Occupation.concept).ToString(),
                             value = conceptId.ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -1043,7 +1047,7 @@ namespace Common
                     {
                         var nextKinObs = new Obs
                         {
-                            concept =((int)Concepts.NextOfKinName).ToString(),
+                            concept = ((int)Concepts.NextOfKinName).ToString(),
                             value = Utilities.UnscrambleCharacters(nextKin),
                             groupMembers = new List<Obs>()
                         };
@@ -1061,7 +1065,7 @@ namespace Common
                     {
                         var phoneKinObs = new Obs
                         {
-                            concept =((int)Concepts.NextOfKinPhone).ToString(),
+                            concept = ((int)Concepts.NextOfKinPhone).ToString(),
                             value = Utilities.UnscrambleNumbers(phoneKin),
                             groupMembers = new List<Obs>()
                         };
@@ -1129,7 +1133,7 @@ namespace Common
 
                         var relationKinObs = new Obs
                         {
-                            concept =((int)NextOfKinRelationship.concept).ToString(),
+                            concept = ((int)NextOfKinRelationship.concept).ToString(),
                             value = conceptId.ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -1162,7 +1166,7 @@ namespace Common
 
                         var pregnantObs = new Obs
                         {
-                            concept =((int)CurrentlyPregnant.concept).ToString(),
+                            concept = ((int)CurrentlyPregnant.concept).ToString(),
                             value = conceptId.ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -1195,7 +1199,7 @@ namespace Common
 
                         var breastfeedingObs = new Obs
                         {
-                            concept =((int)ChildBreastFeeding.concept).ToString(),
+                            concept = ((int)ChildBreastFeeding.concept).ToString(),
                             value = conceptId.ToString(),
                             groupMembers = new List<Obs>()
                         };
@@ -1215,7 +1219,7 @@ namespace Common
             }
         }
         public List<Encounter> BuildCareCardAndVitals(long patientId, string dateOfBirth)
-        {            
+        {
 
             try
             {
@@ -1231,7 +1235,7 @@ namespace Common
                         using (NpgsqlDataReader reader = cmd.ExecuteReader())
                         {
                             if (reader.HasRows)
-                            {             
+                            {
                                 while (reader.Read())
                                 {
                                     var obs = new List<Obs>();
@@ -1256,15 +1260,15 @@ namespace Common
                                         obs = new List<Obs>()
                                     };
 
-                                    var visitDateX = reader["date_visit"];     
-                                    if(visitDateX != null)
+                                    var visitDateX = reader["date_visit"];
+                                    if (visitDateX != null)
                                     {
                                         var visitDateStr = visitDateX.ToString();
                                         if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
                                         {
                                             var visitDateObs = new Obs
                                             {
-                                                concept =((int)Concepts.VisitDate).ToString(),
+                                                concept = ((int)Concepts.VisitDate).ToString(),
                                                 value = visitDate.ToString("yyyy-MM-dd"),
                                                 groupMembers = new List<Obs>()
                                             };
@@ -1275,7 +1279,7 @@ namespace Common
                                             vitals.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
 
                                             var bpStr = reader["bp"];
-                                            if(bpStr != null)
+                                            if (bpStr != null)
                                             {
                                                 var bp = bpStr.ToString().Trim().Replace(" ", string.Empty);
                                                 if (!string.IsNullOrEmpty(bp))
@@ -1288,7 +1292,7 @@ namespace Common
                                                         {
                                                             var systolicObs = new Obs
                                                             {
-                                                                concept =((int)BloodPressure.Systolic).ToString(),
+                                                                concept = ((int)BloodPressure.Systolic).ToString(),
                                                                 value = bps[0],
                                                                 groupMembers = new List<Obs>()
                                                             };
@@ -1297,7 +1301,7 @@ namespace Common
 
                                                             var outDiastObs = new Obs
                                                             {
-                                                                concept =((int)BloodPressure.Diastolic).ToString(),
+                                                                concept = ((int)BloodPressure.Diastolic).ToString(),
                                                                 value = bps[1],
                                                                 groupMembers = new List<Obs>()
                                                             };
@@ -1307,9 +1311,9 @@ namespace Common
                                                     }
                                                 }
                                             }
-                                           
+
                                             var weightStr = reader["body_weight"];
-                                            if(weightStr != null)
+                                            if (weightStr != null)
                                             {
                                                 var weight = weightStr.ToString();
                                                 float wOut = 0;
@@ -1322,7 +1326,7 @@ namespace Common
                                                     {
                                                         var weightObs = new Obs
                                                         {
-                                                            concept =((int)Concepts.Weight).ToString(),
+                                                            concept = ((int)Concepts.Weight).ToString(),
                                                             value = wOut.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1332,7 +1336,7 @@ namespace Common
                                                     }
                                                 }
                                             }
-                                           
+
                                             var whoStageStr = reader["clinic_stage"];
                                             if (whoStageStr != null)
                                             {
@@ -1366,7 +1370,7 @@ namespace Common
                                                         }
                                                         var whoStageObs = new Obs
                                                         {
-                                                            concept =((int)WhoStage.concept).ToString(),
+                                                            concept = ((int)WhoStage.concept).ToString(),
                                                             value = conceptId.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1378,7 +1382,7 @@ namespace Common
                                             }
 
                                             //pregnant
-                                            var pregnStr = reader["pregnant"]; 
+                                            var pregnStr = reader["pregnant"];
                                             if (pregnStr != null)
                                             {
                                                 var pregn = pregnStr.ToString();
@@ -1401,7 +1405,7 @@ namespace Common
 
                                                     var pregnObs = new Obs
                                                     {
-                                                        concept =((int)PregnancyStatus.concept).ToString(),
+                                                        concept = ((int)PregnancyStatus.concept).ToString(),
                                                         value = pregConceptId.ToString(),
                                                         groupMembers = new List<Obs>()
                                                     };
@@ -1410,10 +1414,10 @@ namespace Common
                                                     obs.Add(pregnObs);
                                                 }
                                             }
-                                            
+
                                             //breastfeeding
                                             var breastfeedingStr = reader["breastfeeding"];
-                                            if(breastfeedingStr != null)
+                                            if (breastfeedingStr != null)
                                             {
                                                 var breastfeeding = breastfeedingStr.ToString();
 
@@ -1423,7 +1427,7 @@ namespace Common
                                                     {
                                                         var pregnObs = new Obs
                                                         {
-                                                            concept =((int)PregnancyStatus.concept).ToString(),
+                                                            concept = ((int)PregnancyStatus.concept).ToString(),
                                                             value = ((int)PregnancyStatus.breastFeeding).ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1433,10 +1437,10 @@ namespace Common
                                                     }
                                                 }
                                             }
-                                           
+
 
                                             var nextApptDateStr = reader["next_appointment"];
-                                            if(nextApptDateStr != null)
+                                            if (nextApptDateStr != null)
                                             {
                                                 var nextApptDate = nextApptDateStr.ToString();
                                                 if (!string.IsNullOrEmpty(nextApptDate))
@@ -1451,10 +1455,10 @@ namespace Common
                                                         };
                                                         nextAptDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == nextAptDateObs.concept).UuId;
                                                         obs.Add(nextAptDateObs);
-                                                    }                                                    
+                                                    }
                                                 }
                                             }
-                                            
+
                                             var fStatus = reader["func_status"];
                                             if (fStatus != null)
                                             {
@@ -1484,7 +1488,7 @@ namespace Common
 
                                                     var fStatusObs = new Obs
                                                     {
-                                                        concept =((int)FunctionalStatus.concept).ToString(),
+                                                        concept = ((int)FunctionalStatus.concept).ToString(),
                                                         value = conceptId.ToString(),
                                                         groupMembers = new List<Obs>()
                                                     };
@@ -1495,26 +1499,26 @@ namespace Common
                                             }
 
                                             var heightStr = reader["height"];
-                                            if(heightStr != null)
+                                            if (heightStr != null)
                                             {
-                                                var height  = heightStr.ToString();
+                                                var height = heightStr.ToString();
                                                 if (!string.IsNullOrEmpty(height))
                                                 {
-                                                    if(float.TryParse(height, out float ht))
+                                                    if (float.TryParse(height, out float ht))
                                                     {
                                                         var heightObs = new Obs
                                                         {
                                                             concept = ((int)Concepts.height).ToString(),
-                                                            value = (ht*100).ToString(),
+                                                            value = (ht * 100).ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         heightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == heightObs.concept).UuId;
                                                         obs.Add(heightObs);
                                                         vitals.obs.Add(heightObs);
-                                                    }                                                    
+                                                    }
                                                 }
                                             }
-                                            
+
                                             var tbStatus = reader["tb_status"];
                                             if (tbStatus != null)
                                             {
@@ -1544,7 +1548,7 @@ namespace Common
 
                                                     var tbStatusObs = new Obs
                                                     {
-                                                        concept =((int)TBStatus.concept).ToString(),
+                                                        concept = ((int)TBStatus.concept).ToString(),
                                                         value = conceptId.ToString(),
                                                         groupMembers = new List<Obs>()
                                                     };
@@ -1556,8 +1560,8 @@ namespace Common
 
                                             var regimenTypeStr = reader["regimentype"];
                                             var regimenStr = reader["regimen"];
-                                            
-                                            if(regimenTypeStr != null && regimenStr != null)
+
+                                            if (regimenTypeStr != null && regimenStr != null)
                                             {
                                                 var regimenType = regimenTypeStr.ToString().Trim();
                                                 var regimen = regimenStr.ToString().Trim();
@@ -1572,7 +1576,7 @@ namespace Common
                                                         // Current regimen Line
                                                         var currentRegLineObs = new Obs
                                                         {
-                                                            concept =((int)CurrentRegimenLine.concept).ToString(),
+                                                            concept = ((int)CurrentRegimenLine.concept).ToString(),
                                                             value = rg.NMRSQuestionConceptID.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1583,7 +1587,7 @@ namespace Common
                                                         // Regimen
                                                         var regimenObs = new Obs
                                                         {
-                                                            concept =rg.NMRSQuestionConceptID.ToString(),
+                                                            concept = rg.NMRSQuestionConceptID.ToString(),
                                                             value = rg.NMRSAnswerConceptID.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1594,7 +1598,7 @@ namespace Common
 
                                                 }
                                             }
-                                            
+
                                             var adherence = reader["adherence_level"];
                                             if (adherence != null)
                                             {
@@ -1621,7 +1625,7 @@ namespace Common
 
                                                     var drugAdherenceObs = new Obs
                                                     {
-                                                        concept =((int)DrugAdhenrence.concept).ToString(),
+                                                        concept = ((int)DrugAdhenrence.concept).ToString(),
                                                         value = conceptId.ToString(),
                                                         groupMembers = new List<Obs>()
                                                     };
@@ -1635,7 +1639,7 @@ namespace Common
                                             if (oiIds != null)
                                             {
                                                 var oisX = oiIds.ToString();
-                                                if(!string.IsNullOrEmpty(oisX))
+                                                if (!string.IsNullOrEmpty(oisX))
                                                 {
                                                     var ois = oisX.ToString().Trim().Split(',').ToList();
                                                     ois.ForEach(o =>
@@ -1671,7 +1675,7 @@ namespace Common
 
                                                         var oiObs = new Obs
                                                         {
-                                                            concept =((int)OIs.concept).ToString(),
+                                                            concept = ((int)OIs.concept).ToString(),
                                                             value = conceptId.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1679,7 +1683,7 @@ namespace Common
                                                         oiObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiObs.value).UuId;
                                                         obs.Add(oiObs);
                                                     });
-                                                }                                                
+                                                }
                                             }
 
                                             careCard.obs = obs;
@@ -1687,8 +1691,8 @@ namespace Common
                                             vitalCare.Add(careCard);
                                             vitalCare.Add(vitals);
                                         }
-                                    }                                 
-                                    
+                                    }
+
                                 }
                             }
                         }
@@ -1705,7 +1709,7 @@ namespace Common
             }
         }
         public List<Encounter> BuildPharmacy(long patientId, string date_of_birth)
-        {            
+        {
             var pharmacies = new List<Encounter>();
             try
             {
@@ -1742,7 +1746,7 @@ namespace Common
                                         {
                                             var visitDateObs = new Obs
                                             {
-                                                concept =((int)Concepts.VisitDate).ToString(),
+                                                concept = ((int)Concepts.VisitDate).ToString(),
                                                 value = visitDate.ToString("yyyy-MM-dd"),
                                                 groupMembers = new List<Obs>()
                                             };
@@ -1754,7 +1758,7 @@ namespace Common
                                             // Human immunodeficiency virus treatment regimen
                                             var grObs = new Obs
                                             {
-                                                concept =((int)ARVRegimen.concept).ToString(),
+                                                concept = ((int)ARVRegimen.concept).ToString(),
                                                 groupMembers = new List<Obs>()
                                             };
                                             grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == grObs.concept).UuId;
@@ -1763,11 +1767,11 @@ namespace Common
                                             if (!string.IsNullOrEmpty(visitDateStr) && !string.IsNullOrEmpty(date_of_birth))
                                             {
                                                 var ageAtVist = visitDate.Year - Convert.ToDateTime(date_of_birth).Year;
-                                                
+
                                                 var trxAgeObs = new Obs
                                                 {
-                                                    concept =((int)TreatmentAge.concept).ToString(),
-                                                    value = ageAtVist > 14? ((int)TreatmentAge.Adult).ToString() : ((int)TreatmentAge.Child).ToString(),
+                                                    concept = ((int)TreatmentAge.concept).ToString(),
+                                                    value = ageAtVist > 14 ? ((int)TreatmentAge.Adult).ToString() : ((int)TreatmentAge.Child).ToString(),
                                                     groupMembers = new List<Obs>()
                                                 };
                                                 trxAgeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.concept).UuId;
@@ -1789,7 +1793,7 @@ namespace Common
                                                     {
                                                         var durationObs = new Obs
                                                         {
-                                                            concept =((int)Concepts.MedicationDuration).ToString(),
+                                                            concept = ((int)Concepts.MedicationDuration).ToString(),
                                                             value = durationOut.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1799,7 +1803,7 @@ namespace Common
                                                         // ------ Quantity of medication prescribed per dose
                                                         var prescribedObs = new Obs
                                                         {
-                                                            concept =((int)Concepts.QuantityPrescribed).ToString(),
+                                                            concept = ((int)Concepts.QuantityPrescribed).ToString(),
                                                             value = durationOut.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1809,7 +1813,7 @@ namespace Common
                                                         // ------ Medication dispensed
                                                         var dispensedObs = new Obs
                                                         {
-                                                            concept =((int)Concepts.QuantityDispensed).ToString(),
+                                                            concept = ((int)Concepts.QuantityDispensed).ToString(),
                                                             value = durationOut.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1842,7 +1846,7 @@ namespace Common
                                                         // Current regimen Line
                                                         var currentRegLineObs = new Obs
                                                         {
-                                                            concept =((int)CurrentRegimenLine.concept).ToString(),
+                                                            concept = ((int)CurrentRegimenLine.concept).ToString(),
                                                             value = rg.NMRSQuestionConceptID.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1853,7 +1857,7 @@ namespace Common
                                                         // Regimen
                                                         var regimenObs = new Obs
                                                         {
-                                                            concept =rg.NMRSQuestionConceptID.ToString(),
+                                                            concept = rg.NMRSQuestionConceptID.ToString(),
                                                             value = rg.NMRSAnswerConceptID.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
@@ -1887,7 +1891,7 @@ namespace Common
 
                                                     var drugAdherenceCounsellingObs = new Obs
                                                     {
-                                                        concept =((int)AdherenceCounselling.concept).ToString(),
+                                                        concept = ((int)AdherenceCounselling.concept).ToString(),
                                                         value = conceptId.ToString(),
                                                         groupMembers = new List<Obs>()
                                                     };
@@ -1900,7 +1904,7 @@ namespace Common
                                             // ---- Pick up Reason                                            
                                             var pickUpReasonObs = new Obs
                                             {
-                                                concept =((int)PickUpReason.concept).ToString(),
+                                                concept = ((int)PickUpReason.concept).ToString(),
                                                 value = ((int)PickUpReason.Refill).ToString(),
                                                 groupMembers = new List<Obs>()
                                             };
@@ -1911,7 +1915,7 @@ namespace Common
                                             //------ Visit Type                                          
                                             var visitTypeObs = new Obs
                                             {
-                                                concept =((int)VisitType.concept).ToString(),
+                                                concept = ((int)VisitType.concept).ToString(),
                                                 value = ((int)VisitType.ReturnVisitType).ToString(),
                                                 groupMembers = new List<Obs>()
                                             };
@@ -1922,7 +1926,7 @@ namespace Common
                                             //-------- Date ordered                                            
                                             var dateOrderedObs = new Obs
                                             {
-                                                concept =((int)Concepts.DateOrdered).ToString(),
+                                                concept = ((int)Concepts.DateOrdered).ToString(),
                                                 value = visitDate.ToString("yyyy-MM-dd"),
                                                 groupMembers = new List<Obs>()
                                             };
@@ -1932,7 +1936,7 @@ namespace Common
                                             //-------- Date dispensed                                            
                                             var dateDispensedObs = new Obs
                                             {
-                                                concept =((int)Concepts.DateDispensed).ToString(),
+                                                concept = ((int)Concepts.DateDispensed).ToString(),
                                                 value = visitDate.ToString("yyyy-MM-dd"),
                                                 groupMembers = new List<Obs>()
                                             };
@@ -1961,16 +1965,16 @@ namespace Common
         }
         public string SanitiseDrug(string regimen)
         {
-            if(regimen.Contains('(') || regimen.Contains(')'))
+            if (regimen.Contains('(') || regimen.Contains(')'))
             {
                 regimen = Regex.Replace(regimen, @" ?\(.*?\)", string.Empty); //remove drug strengths and brackets
                 SanitiseDrug(regimen);
             }
-            if(!regimen.Contains("NRT"))
+            if (!regimen.Contains("NRT"))
             {
                 regimen = regimen.Replace('+', '-').Replace('/', '-').Replace("-r", "/r");
             }
-            
+
             return regimen;
         }
         public List<ARTModel> GetARTCommencementMap()
@@ -2000,12 +2004,12 @@ namespace Common
 
                         artcommencementMaps.Add(new ARTModel
                         {
-                            VariableName = variableName != null? variableName.ToString().ToLower() : "",
-                            VariablePosition = variablePosition != null? variablePosition.ToString(): "",
-                            DataType = dataType!= null? dataType.ToString() : "",
-                            LamisAnswer = lamisAnswer != null? lamisAnswer.ToString() : "",
-                            OMRSConceptID = oMRSConceptID != null? oMRSConceptID.ToString() : "",
-                            OMRSAnswerID = oMRSAnswerID != null? oMRSAnswerID.ToString() : ""
+                            VariableName = variableName != null ? variableName.ToString().ToLower() : "",
+                            VariablePosition = variablePosition != null ? variablePosition.ToString() : "",
+                            DataType = dataType != null ? dataType.ToString() : "",
+                            LamisAnswer = lamisAnswer != null ? lamisAnswer.ToString() : "",
+                            OMRSConceptID = oMRSConceptID != null ? oMRSConceptID.ToString() : "",
+                            OMRSAnswerID = oMRSAnswerID != null ? oMRSAnswerID.ToString() : ""
                         });
                     }
 
@@ -2024,7 +2028,7 @@ namespace Common
         {
             var regimens = new List<Regimen>();
             try
-            {                
+            {
                 var path = Path.Combine(rootDir, @"Templates", @"NMRSRegimen.xlsx");
                 FileInfo fileInfo = new FileInfo(path);
                 using (var package = new ExcelPackage(fileInfo))
@@ -2054,7 +2058,7 @@ namespace Common
                             QuestionID = questionID != null ? questionID.ToString() : "",
                             NMRSQuestionConceptID = nmrsQuestionConceptID != null ? nmrsQuestionConceptID.ToString() : "",
                             NMRSAnswerConceptID = nmrsAnswerConceptID != null ? nmrsAnswerConceptID.ToString() : ""
-                        });                        
+                        });
                     }
 
                 }
@@ -2115,6 +2119,222 @@ namespace Common
             }
         }
 
+        public List<Lab> GetLabs()
+        {
+            var labs = new List<Lab>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"Templates", @"LabTests.xlsx");
+                FileInfo fileInfo = new FileInfo(path);
+                using (var package = new ExcelPackage(fileInfo))
+                {
+                    var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                    // get number of rows and columns in the sheets
+                    int rows = worksheet.Dimension.Rows;
+                    int columns = worksheet.Dimension.Columns;
+
+                    // loop through the worksheet rows and columns
+                    for (int i = 2; i <= rows; i++)
+                    {
+                        var labtest_id = worksheet.Cells["A" + i].Value;
+                        var lab_Category_id = worksheet.Cells["B" + i].Value;
+                        var description = worksheet.Cells["C" + i].Value;
+                        var measureab = worksheet.Cells["D" + i].Value;
+                        var measurepc = worksheet.Cells["E" + i].Value;
+                        var absolute_concept = worksheet.Cells["F" + i].Value;
+                        var conceptID = worksheet.Cells["G" + i].Value;
+                        var positive = worksheet.Cells["H" + i].Value;
+                        var negative = worksheet.Cells["I" + i].Value;
+                        var datatype = worksheet.Cells["J" + i].Value;
+
+                        labs.Add(new Lab
+                        {
+                            Labtest_Id = labtest_id != null ? labtest_id.ToString() : "",
+                            Labtestcategory_Id = lab_Category_id != null ? lab_Category_id.ToString() : "",
+                            Description = description != null ? description.ToString() : "",
+                            Measureab = measureab != null ? measureab.ToString() : "",
+                            Measurepc = measurepc != null ? measurepc.ToString() : "",
+                            Openmrsabsoluteconceptid = absolute_concept != null ? absolute_concept.ToString() : "",
+                            Openmrspcconceptid = conceptID != null ? conceptID.ToString() : "",
+                            Positive = positive != null ? positive.ToString() : "",
+                            Negative = negative != null ? negative.ToString() : "",
+                            Datatype = datatype != null ? datatype.ToString() : ""
+                        });
+                    }
+
+                }
+                return labs;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return labs;
+            }
+        }
+
+        public List<Encounter> BuildLab(long patientId)
+        {
+            var lab = new List<Encounter>();
+            var labData = GetLabData();
+
+            var obs = new List<Obs>();
+            foreach (var item in labData.Where(m => m.patient_id == patientId.ToString()))
+            {
+                var l = new Encounter
+                {
+                    encounterType = "7ccf3847-7bc3-42e5-8b7e-4125712660ea", //lab
+                    encounterDatetime = "",
+                    location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
+                    form = "889ce948-f1ee-4656-91af-147a9e760309", //lab order and result form
+                    obs = new List<Obs>()
+                };
+
+                var visitDateX = item.date_collected;
+                if (visitDateX != null)
+                {
+                    var visitDateStr = visitDateX.ToString();
+                    if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
+                    {
+                        var visitDateObs = new Obs
+                        {
+                            concept = ((int)Concepts.VisitDate).ToString(),
+                            value = visitDate.ToString("yyyy-MM-dd"),
+                            groupMembers = new List<Obs>()
+                        };
+                        visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
+                        obs.Add(visitDateObs);
+
+                        l.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
+
+                        // Date collected
+                        var date_c = new Obs
+                        {
+                            concept = (159951).ToString(),
+                            value = item.date_collected
+                        };
+                        date_c.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == date_c.concept).UuId;
+                        obs.Add(date_c);
+
+                        // Date reported
+                        var date_r = new Obs
+                        {
+                            concept = (165414).ToString(),
+                            value = item.date_reported
+                        };
+                        date_r.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == date_r.concept).UuId;
+                        obs.Add(date_r);
+
+                        // lab_no
+                        var lab_no = new Obs
+                        {
+                            concept = (165715).ToString(),
+                            value = item.labno
+                        };
+                        lab_no.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_no.concept).UuId;
+                        obs.Add(lab_no);
+
+                        //Tests made and results
+                        //check for absolute and percentages in result   
+                        if (string.IsNullOrEmpty(item.resultab))
+                        {
+                            var lab_test = new Obs
+                            {
+                                concept = labs.FirstOrDefault(m => m.Labtest_Id == item.labtest_id).Openmrsabsoluteconceptid.ToString(),
+                                value = item.resultab
+                            };
+                            lab_test.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_test.concept).UuId;
+                            obs.Add(lab_test);
+                        }
+                        if (string.IsNullOrEmpty(item.resultpc))
+                        {
+                            var lab_test = new Obs
+                            {
+                                concept = labs.FirstOrDefault(m => m.Labtest_Id == item.labtest_id).Openmrspcconceptid.ToString(),
+                                value = item.resultpc
+                            };
+                            lab_test.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_test.concept).UuId;
+                            obs.Add(lab_test);
+                        }
+
+
+                        l.obs.AddRange(obs);
+                        //l.obs.Add(grObs);
+                        lab.Add(l);
+                    }
+                }
+
+            }
+            return lab;
+        }
+
+        public List<LabData> GetLabData()
+        {
+            var labs = new List<LabData>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"SheetData", @"laboratory.xlsx");
+                FileInfo fileInfo = new FileInfo(path);
+                using (var package = new ExcelPackage(fileInfo))
+                {
+                    var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                    // get number of rows and columns in the sheets
+                    int rows = worksheet.Dimension.Rows;
+                    int columns = worksheet.Dimension.Columns;
+
+                    // loop through the worksheet rows and columns
+                    for (int i = 2; i <= rows; i++)
+                    {
+                        var laboratory_id = worksheet.Cells["A" + i].Value;
+                        var patient_id = worksheet.Cells["B" + i].Value;
+                        var facility_id = worksheet.Cells["C" + i].Value;
+                        var date_reported = worksheet.Cells["D" + i].Value;
+                        var date_collected = worksheet.Cells["E" + i].Value;
+                        var labno = worksheet.Cells["F" + i].Value;
+                        var resultab = worksheet.Cells["G" + i].Value;
+                        var resultpc = worksheet.Cells["H" + i].Value;
+                        var comment = worksheet.Cells["I" + i].Value;
+                        var labtest_id = worksheet.Cells["J" + i].Value;
+                        var time_stamp = worksheet.Cells["K" + i].Value;
+                        var uploaded = worksheet.Cells["L" + i].Value;
+                        var time_uploaded = worksheet.Cells["M" + i].Value;
+                        var user_id = worksheet.Cells["N" + i].Value;
+                        var id_uuid = worksheet.Cells["O" + i].Value;
+                        var uuid = worksheet.Cells["P" + i].Value;
+                        var archived = worksheet.Cells["Q" + i].Value;
+
+                        labs.Add(new LabData
+                        {
+                            laboratory_id = laboratory_id != null ? laboratory_id.ToString() : "",
+                            patient_id = patient_id != null ? patient_id.ToString() : "",
+                            facility_id = facility_id != null ? facility_id.ToString() : "",
+                            date_reported = date_reported != null ? date_reported.ToString() : "",
+                            date_collected = date_collected != null ? date_collected.ToString() : "",
+                            labno = labno != null ? labno.ToString() : "",
+                            resultab = resultab != null ? resultab.ToString() : "",
+                            resultpc = resultpc != null ? resultpc.ToString() : "",
+                            comment = comment != null ? comment.ToString() : "",
+                            labtest_id = labtest_id != null ? labtest_id.ToString() : "",
+                            time_stamp = time_stamp != null ? time_stamp.ToString() : "",
+                            uploaded = uploaded != null ? uploaded.ToString() : "",
+                            time_uploaded = time_uploaded != null ? time_uploaded.ToString() : "",
+                            user_id = user_id != null ? user_id.ToString() : "",
+                            id_uuid = id_uuid != null ? id_uuid.ToString() : "",
+                            uuid = uuid != null ? uuid.ToString() : "",
+                            archived = archived != null ? archived.ToString() : ""
+                        });
+                    }
+
+                }
+                return labs;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return labs;
+            }
+        }
     }
 
 }
