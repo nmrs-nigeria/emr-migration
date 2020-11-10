@@ -25,6 +25,7 @@ namespace Common
 
         List<Regimen> regimens;
         List<NmrsConcept> nmsConcepts;
+        List<Drug> drugs;
         string rootDir;
 
         public DataBuilder()
@@ -41,10 +42,11 @@ namespace Common
             {
                 regimens = GetRegimen();
                 nmsConcepts = new Utilities().GetConcepts();
+                drugs = GetDrugs();
 
-                if (!regimens.Any() || !nmsConcepts.Any())
+                if (!regimens.Any() || !nmsConcepts.Any() || !drugs.Any())
                 {
-                    Console.WriteLine("ERROR: Regimen or NMRS Concepts data List could not be retrieved. Command Aborted");
+                    Console.WriteLine("ERROR: Regimen/Drugs or NMRS Concepts data List could not be retrieved. Command Aborted");
                     return new List<Patient>();
                 }
 
@@ -1146,28 +1148,27 @@ namespace Common
 
                     if (!string.IsNullOrEmpty(pregnant))
                     {
-                        int conceptId;
+                        string valueBoolean;
                         switch (pregnant)
                         {
                             case "0":
-                                conceptId = (int)CurrentlyPregnant.No;
+                                valueBoolean = "false";
                                 break;
                             case "1":
-                                conceptId = (int)CurrentlyPregnant.Yes;
+                                valueBoolean = "true";
                                 break;
                             default:
-                                conceptId = (int)CurrentlyPregnant.No;
+                                valueBoolean = "false";
                                 break;
                         }
 
                         var pregnantObs = new Obs
                         {
                             concept =((int)CurrentlyPregnant.concept).ToString(),
-                            value = conceptId.ToString(),
+                            value = valueBoolean,
                             groupMembers = new List<Obs>()
                         };
                         pregnantObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnantObs.concept).UuId;
-                        pregnantObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnantObs.value).UuId;
                         hivEnrolment.obs.Add(pregnantObs);
                     }
                 }
@@ -1434,7 +1435,6 @@ namespace Common
                                                 }
                                             }
                                            
-
                                             var nextApptDateStr = reader["next_appointment"];
                                             if(nextApptDateStr != null)
                                             {
@@ -1505,7 +1505,7 @@ namespace Common
                                                         var heightObs = new Obs
                                                         {
                                                             concept = ((int)Concepts.height).ToString(),
-                                                            value = (ht*100).ToString(),
+                                                            value = ht < 10? (ht*100).ToString() : ht.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         heightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == heightObs.concept).UuId;
@@ -1720,26 +1720,24 @@ namespace Common
                         {
                             if (reader.HasRows)
                             {
-                                var obs = new List<Obs>();
-
                                 while (reader.Read())
                                 {
-                                    var pharmacy = new Encounter
-                                    {
-                                        encounterType = "a1fa6aa3-59e1-4833-a28c-bb62f2fb07df", //pharmacy
-                                        encounterDatetime = "",
-                                        location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
-                                        form = "4a238dc4-a76b-4c0f-a100-229d98fd5758", //pharmacy form
-                                        //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
-                                        obs = new List<Obs>()
-                                    };
-
                                     var visitDateX = reader["date_visit"];
                                     if (visitDateX != null)
                                     {
                                         var visitDateStr = visitDateX.ToString();
                                         if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
                                         {
+                                            var pharmacy = new Encounter
+                                            {
+                                                encounterType = "a1fa6aa3-59e1-4833-a28c-bb62f2fb07df", //pharmacy
+                                                encounterDatetime = "",
+                                                location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
+                                                form = "4a238dc4-a76b-4c0f-a100-229d98fd5758", //pharmacy form
+                                                                                               //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                                                obs = new List<Obs>()
+                                            };
+
                                             var visitDateObs = new Obs
                                             {
                                                 concept =((int)Concepts.VisitDate).ToString(),
@@ -1747,14 +1745,14 @@ namespace Common
                                                 groupMembers = new List<Obs>()
                                             };
                                             visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
-                                            obs.Add(visitDateObs);
+                                            pharmacy.obs.Add(visitDateObs);
 
                                             pharmacy.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
 
                                             // Human immunodeficiency virus treatment regimen
                                             var grObs = new Obs
                                             {
-                                                concept =((int)ARVRegimen.concept).ToString(),
+                                                concept = ((int)ARVRegimen.concept).ToString(),
                                                 groupMembers = new List<Obs>()
                                             };
                                             grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == grObs.concept).UuId;
@@ -1772,7 +1770,7 @@ namespace Common
                                                 };
                                                 trxAgeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.concept).UuId;
                                                 trxAgeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.value).UuId;
-                                                grObs.groupMembers.Add(trxAgeObs);
+                                                pharmacy.obs.Add(trxAgeObs);
                                             }
 
                                             var durationStr = reader["duration"];
@@ -1815,11 +1813,6 @@ namespace Common
                                                         };
                                                         dispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dispensedObs.concept).UuId;
                                                         grObs.groupMembers.Add(dispensedObs);
-
-                                                        if (grObs.groupMembers.Any())
-                                                        {
-                                                            pharmacy.obs.Add(grObs);
-                                                        }
                                                     }
                                                 }
                                             }
@@ -1848,7 +1841,7 @@ namespace Common
                                                         };
                                                         currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
                                                         currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
-                                                        grObs.groupMembers.Add(currentRegLineObs);
+                                                        pharmacy.obs.Add(currentRegLineObs);
 
                                                         // Regimen
                                                         var regimenObs = new Obs
@@ -1859,11 +1852,87 @@ namespace Common
                                                         };
                                                         regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
                                                         regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
-                                                        grObs.groupMembers.Add(regimenObs);
+                                                        pharmacy.obs.Add(regimenObs);
+
+                                                        //Treatment type
+                                                        var treatmentTyeObs = new Obs
+                                                        {
+                                                            concept = ((int)TreatmentType.concept).ToString(),
+                                                            value = ((int)TreatmentType.AntiretroviralTherapy).ToString(),
+                                                            groupMembers = new List<Obs>()
+                                                        };
+                                                        treatmentTyeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.concept).UuId;
+                                                        treatmentTyeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.value).UuId;
+                                                        pharmacy.obs.Add(treatmentTyeObs);
+                                                    }
+                                                    else
+                                                    {
+                                                        var drgs = drugs.Where(r => r.NAME.ToLower() == regimen.ToLower()).ToList();
+                                                        if (rgs.Any())
+                                                        {
+                                                            var drg = drgs[0];                                                       
+                                                            var dName = drg.NAME.ToLower();
+
+                                                            if (dName == "isoniazid" || dName == "cotrimoxazole" || dName == "fluconazole" || dName == "nystatin")
+                                                            {
+                                                                // OI Prophylaxis
+                                                                var oiGrpObs = new Obs
+                                                                {
+                                                                    concept = drg.GROUPINGCONCEPT.ToString(),
+                                                                    groupMembers = new List<Obs>()
+                                                                };
+                                                                grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiGrpObs.concept).UuId;
+
+                                                                var oiDrugObs = new Obs
+                                                                {
+                                                                    concept = drg.OPENMRSQUESTIONCONCEPT.ToString(),
+                                                                    value = drg.OPENMRSDRUGCONCEPTID.ToString(),
+                                                                    groupMembers = new List<Obs>()
+                                                                };
+                                                                oiDrugObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.concept).UuId;
+                                                                oiDrugObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.value).UuId;
+                                                                pharmacy.obs.Add(oiDrugObs);
+                                                            }
+                                                            else
+                                                            {
+                                                                if (dName == "rhze/rh" || dName == "rifabutin")
+                                                                {
+                                                                    // Anti-TB Treatment
+                                                                    var oiGrpObs = new Obs
+                                                                    {
+                                                                        concept = drg.GROUPINGCONCEPT.ToString(),
+                                                                        groupMembers = new List<Obs>()
+                                                                    };
+                                                                    grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiGrpObs.concept).UuId;
+
+                                                                    var oiDrugObs = new Obs
+                                                                    {
+                                                                        concept = drg.OPENMRSQUESTIONCONCEPT.ToString(),
+                                                                        value = drg.OPENMRSDRUGCONCEPTID.ToString(),
+                                                                        groupMembers = new List<Obs>()
+                                                                    };
+                                                                    oiDrugObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.concept).UuId;
+                                                                    oiDrugObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.value).UuId;
+                                                                    pharmacy.obs.Add(oiDrugObs);
+                                                                }
+                                                            }
+
+                                                            //Treatment type
+                                                            var treatmentTyeObs = new Obs
+                                                            {
+                                                                concept = ((int)TreatmentType.concept).ToString(),
+                                                                value = ((int)TreatmentType.Non_ART).ToString(),
+                                                                groupMembers = new List<Obs>()
+                                                            };
+                                                            treatmentTyeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.concept).UuId;
+                                                            treatmentTyeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.value).UuId;
+                                                            pharmacy.obs.Add(treatmentTyeObs);
+                                                        }
                                                     }
 
                                                 }
                                             }
+                                                                                       
 
                                             //---- Adherence counselling
                                             var adherence = reader["adherence"];
@@ -1893,7 +1962,7 @@ namespace Common
                                                     };
                                                     drugAdherenceCounsellingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.concept).UuId;
                                                     drugAdherenceCounsellingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.value).UuId;
-                                                    obs.Add(drugAdherenceCounsellingObs);
+                                                    pharmacy.obs.Add(drugAdherenceCounsellingObs);
                                                 }
                                             }
 
@@ -1906,7 +1975,7 @@ namespace Common
                                             };
                                             pickUpReasonObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.concept).UuId;
                                             pickUpReasonObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.value).UuId;
-                                            obs.Add(pickUpReasonObs);
+                                            pharmacy.obs.Add(pickUpReasonObs);
 
                                             //------ Visit Type                                          
                                             var visitTypeObs = new Obs
@@ -1917,7 +1986,7 @@ namespace Common
                                             };
                                             visitTypeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.concept).UuId;
                                             visitTypeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.value).UuId;
-                                            obs.Add(visitTypeObs);
+                                            pharmacy.obs.Add(visitTypeObs);
 
                                             //-------- Date ordered                                            
                                             var dateOrderedObs = new Obs
@@ -1927,7 +1996,7 @@ namespace Common
                                                 groupMembers = new List<Obs>()
                                             };
                                             dateOrderedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateOrderedObs.concept).UuId;
-                                            obs.Add(dateOrderedObs);
+                                            pharmacy.obs.Add(dateOrderedObs);
 
                                             //-------- Date dispensed                                            
                                             var dateDispensedObs = new Obs
@@ -1937,8 +2006,7 @@ namespace Common
                                                 groupMembers = new List<Obs>()
                                             };
                                             dateDispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateDispensedObs.concept).UuId;
-                                            obs.Add(dateDispensedObs);
-                                            pharmacy.obs.AddRange(obs);
+                                            pharmacy.obs.Add(dateDispensedObs);
                                             pharmacy.obs.Add(grObs);
                                             pharmacies.Add(pharmacy);
                                         }
@@ -1950,7 +2018,9 @@ namespace Common
                     }
                 }
 
-                return pharmacies;
+                var pp = pharmacies.GroupBy(x => x.encounterDatetime).Select(y => y.First()).ToList();
+
+                return pp;
             }
             catch (Exception ex)
             {
@@ -2065,6 +2135,59 @@ namespace Common
                 var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
                 Console.WriteLine(message);
                 return regimens;
+            }
+        }
+        public List<Drug> GetDrugs()
+        {
+            var drugs = new List<Drug>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"Templates", @"drugcoding.xlsx");
+                FileInfo fileInfo = new FileInfo(path);
+                using (var package = new ExcelPackage(fileInfo))
+                {
+                    var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                    // get number of rows and columns in the sheets
+                    int rows = worksheet.Dimension.Rows;
+                    int columns = worksheet.Dimension.Columns;
+
+                    // loop through the worksheet rows and columns
+                    for (int i = 2; i <= rows; i++)
+                    {
+                        var abbrev = worksheet.Cells["A" + i].Value;
+                        var name = worksheet.Cells["B" + i].Value;
+                        var strenght = worksheet.Cells["C" + i].Value;
+                        var morning = worksheet.Cells["D" + i].Value;
+                        var afternoon = worksheet.Cells["E" + i].Value;
+                        var evening = worksheet.Cells["F" + i].Value;
+                        var openmrsQuestionConcept = worksheet.Cells["G" + i].Value;
+                        var openmrsDDrugConceptId = worksheet.Cells["H" + i].Value;
+                        var strengthConceptId = worksheet.Cells["I" + i].Value;
+                        var groupingConcept = worksheet.Cells["J" + i].Value;
+
+                        drugs.Add(new Drug
+                        {
+                            ABBREV = abbrev != null ? abbrev.ToString().ToLower() : "",
+                            NAME = name != null ? name.ToString().ToLower() : "",
+                            STRENGTH = strenght != null ? strenght.ToString().ToLower() : "",
+                            MORNING = morning != null ? morning.ToString().ToLower() : "",
+                            AFTERNOON = afternoon != null ? afternoon.ToString().ToLower() : "",
+                            EVENING = evening != null ? evening.ToString().ToLower() : "",
+                            OPENMRSQUESTIONCONCEPT = openmrsQuestionConcept != null ? openmrsQuestionConcept.ToString().ToLower() : "",
+                            OPENMRSDRUGCONCEPTID = openmrsDDrugConceptId != null ? openmrsDDrugConceptId.ToString().ToLower() : "",
+                            STRENGTHCONCEPTID = strengthConceptId != null ? strengthConceptId.ToString().ToLower() : "",
+                            GROUPINGCONCEPT = groupingConcept != null ? groupingConcept.ToString().ToLower() : "",
+                        });
+                    }
+
+                }
+                return drugs;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return drugs;
             }
         }
         public List<ARTModel> GetExitMap()

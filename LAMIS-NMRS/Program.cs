@@ -152,8 +152,7 @@ namespace LAMIS_NMRS
 
                     page += 1;
                     MigrateData(apiHelper, page, pageSize);
-                }
-                
+                }               
                             
             }
             catch(Exception ex)
