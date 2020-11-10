@@ -280,7 +280,7 @@ namespace LAMIS_NMRS.Utils
         PaediatricSecondLine = 164514,
         PaediatricThirdLine = 165703
     }
-
+    //164506,164513,165702,164507,164514,165703
     public enum DrugAdhenrence
     {
         concept = 165290,

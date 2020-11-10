@@ -15,7 +15,22 @@ namespace LAMIS_NMRS.Models
         public string NMRSAnswerConceptID { get; set; }
     }
 
-    public class NmrsConcept
+    public class Drug
+    {
+        public string ABBREV { get; set; }
+        public string NAME { get; set; }
+        public string STRENGTH { get; set; }
+        public string MORNING { get; set; }
+        public string AFTERNOON { get; set; }
+        public string EVENING { get; set; }
+        public string OPENMRSQUESTIONCONCEPT { get; set; }
+        public string OPENMRSDRUGCONCEPTID { get; set; }
+        public string STRENGTHCONCEPTID { get; set; }
+        public string GROUPINGCONCEPT { get; set; }
+    }
+
+
+public class NmrsConcept
     {
         public string ConceptId { get; set; }
         public string UuId { get; set; }
