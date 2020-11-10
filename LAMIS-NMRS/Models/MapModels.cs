@@ -15,6 +15,12 @@ namespace LAMIS_NMRS.Models
         public string NMRSAnswerConceptID { get; set; }
     }
 
+    public class NmrsConcept
+    {
+        public string ConceptId { get; set; }
+        public string UuId { get; set; }
+    }
+
     public class ARTModel
     {
         public string VariableName { get; set; }

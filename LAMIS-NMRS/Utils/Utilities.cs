@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using LAMIS_NMRS.Models;
+using Microsoft.Extensions.Configuration;
 using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
@@ -110,6 +111,44 @@ namespace LAMIS_NMRS.Utils
 
             TextInfo cultInfo = new CultureInfo("en-US", false).TextInfo;
             return cultInfo.ToTitleCase(s);
+        }
+
+        public List<NmrsConcept> GetConcepts()
+        {
+            var concepts = new List<NmrsConcept>();
+            try
+            {
+                var path = Path.Combine(Directory.GetCurrentDirectory(), @"Templates", @"nmrs_concepts.xlsx");
+                FileInfo fileInfo = new FileInfo(path);
+                using (var package = new ExcelPackage(fileInfo))
+                {
+                    var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                    // get number of rows and columns in the sheets
+                    int rows = worksheet.Dimension.Rows;
+                    int columns = worksheet.Dimension.Columns;
+
+                    // loop through the worksheet rows and columns
+                    for (int i = 2; i <= rows; i++)
+                    {
+                        var conceptId = worksheet.Cells["A" + i].Value;
+                        var uuid = worksheet.Cells["B" + i].Value;
+
+                        concepts.Add(new NmrsConcept
+                        {
+                            ConceptId = conceptId.ToString(),
+                            UuId = uuid.ToString()
+                        });
+                    }
+
+                }
+                return concepts;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new List<NmrsConcept>();
+            }
         }
     }   
 }

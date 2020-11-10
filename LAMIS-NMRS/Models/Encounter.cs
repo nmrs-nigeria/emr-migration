@@ -21,17 +21,21 @@ namespace LAMIS_NMRS.Models
     [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
     public class Obs
     {        
-        public string concept { get; set; }      
-
-      //  [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string person { get; set; }
+        public string obsDatetime { get; set; }
+        public string concept { get; set; }
+        public string location { get; set; }
+        public string order { get; set; }
+        public string encounter { get; set; }
+        public string accessionNumber { get; set; }
         public List<Obs> groupMembers { get; set; }
-        public string obsGroup { get; set; } //conceptId
-        public string valueDatetime { get; set; }
-        public string valueNumeric { get; set; }
-        public string valueText { get; set; }
-        public string valueCoded { get; set; } //conceptId       
-        public string valueComplex { get; set; }
-        public string valueBoolean { get; set; }
+        public string valueCodedNam { get; set; }
+        public string comment { get; set; }
+        public string voided { get; set; }
+        public string value { get; set; }
+        public string valueModifier { get; set; }
+        public string formFieldPath { get; set; }
+        public string formFieldNamespace { get; set; }
     }
 
     public class ConceptUUID

@@ -9,6 +9,7 @@ namespace Common
         public static readonly string programenrollment = "programenrollment";
         public static string patient = "patient";
         public static string person = "person";
+        public static string obs = "obs";
         public static string encounter = "encounter";
         public static string visit = "visit";
         public static string provider = "provider";

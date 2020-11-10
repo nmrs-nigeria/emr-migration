@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -47,11 +48,8 @@ namespace LAMIS_NMRS.Utils
 
         public async Task<T> PostMessageWithData<T, U>(string urlPart, U data)
         {
-            //string jsonData = Newtonsoft.Json.JsonConvert.SerializeObject(data);
-
             string url = baseDataURL + urlPart;
             var response = await ApiClient.PostAsJsonAsync(url, data);
-            //new StringContent(jsonData, Encoding.UTF8, "application/json"));
 
             if (response.StatusCode == System.Net.HttpStatusCode.Accepted ||
                 response.StatusCode == System.Net.HttpStatusCode.Created ||

@@ -8,7 +8,10 @@ namespace Common
     {
         public string uuid { get; set; }
     }
-
+    public class ArrayResponse
+    {
+        public List<string> uuids { get; set; }
+    }
     public class DataQueryResponseWrapper
     {
         public List<DataQueryResponse> results { get; set; }

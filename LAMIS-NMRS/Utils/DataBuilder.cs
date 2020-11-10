@@ -24,6 +24,7 @@ namespace Common
         //{outPatientClinic: 58c57d25-8d39-41ab-8422-108a0c277d98}]
 
         List<Regimen> regimens;
+        List<NmrsConcept> nmsConcepts;
         string rootDir;
 
         public DataBuilder()
@@ -31,7 +32,7 @@ namespace Common
             rootDir = Directory.GetCurrentDirectory();
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
         }
-
+     
         public List<Patient> BuildPatientInfo(int itemsPerPage, int pageNumber)
         {
             var patients = new List<Patient>();
@@ -39,11 +40,14 @@ namespace Common
             try
             {
                 regimens = GetRegimen();
-                if(!regimens.Any())
+                nmsConcepts = new Utilities().GetConcepts();
+
+                if (!regimens.Any() || !nmsConcepts.Any())
                 {
-                    Console.WriteLine("ERROR: Regimen data List could not be retrieved. Command Aborted");
+                    Console.WriteLine("ERROR: Regimen or NMRS Concepts data List could not be retrieved. Command Aborted");
                     return new List<Patient>();
                 }
+
                 using (NpgsqlConnection connection = new NpgsqlConnection(Utilities.GetConnectionString("pgconn")))
                 {
                     connection.Open();
@@ -274,8 +278,12 @@ namespace Common
                 var fStatusObs = new Obs
                 {
                     concept = ((int)FunctionalStatus.concept).ToString(),
-                    valueCoded = ((int)FunctionalStatus.working).ToString()
+                    value = ((int)FunctionalStatus.working).ToString(),
+                    groupMembers = new List<Obs>()
                 };
+
+                fStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.concept).UuId;
+                fStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.value).UuId;
                 artCommencement.obs.Add(fStatusObs);
 
                 var date_started = reader["date_started"];
@@ -296,9 +304,11 @@ namespace Common
                                 var artS = artStrs.ElementAt(0);
                                 var fartStartDateObs = new Obs
                                 {
-                                    concept = artS.OMRSConceptID,
-                                    valueDatetime = artStartDate.ToString("yyyy-MM-dd")
+                                    concept =artS.OMRSConceptID,
+                                    value = artStartDate.ToString("yyyy-MM-dd"),
+                                    groupMembers = new List<Obs>()
                                 };
+                                fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;                               
                                 artCommencement.obs.Add(fartStartDateObs);
                             }
                         }
@@ -330,9 +340,12 @@ namespace Common
 
                         var whoStageObs = new Obs //WHO Stage at start
                         {
-                            concept = ((int)WhoStage.concept).ToString(),
-                            valueCoded = ageAtStart > 14 ? ((int)WhoStage.adultStage1).ToString() : ((int)WhoStage.paedStage1).ToString()
+                            concept =((int)WhoStage.concept).ToString(),
+                            value = ageAtStart > 14 ? ((int)WhoStage.adultStage1).ToString() : ((int)WhoStage.paedStage1).ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
+                        whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
                         artCommencement.obs.Add(whoStageObs);
                     }
                 }
@@ -355,17 +368,23 @@ namespace Common
                             // Current regimen Line
                             var currentRegLineObs = new Obs
                             {
-                                concept = ((int)CurrentRegimenLine.concept).ToString(),
-                                valueCoded = rg.NMRSQuestionConceptID.ToString()
+                                concept =((int)CurrentRegimenLine.concept).ToString(),
+                                value = rg.NMRSQuestionConceptID.ToString(),
+                                groupMembers = new List<Obs>()
                             };
+                            currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
+                            currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
                             artCommencement.obs.Add(currentRegLineObs);
 
                             // Regimen
                             var regimenObs = new Obs
                             {
-                                concept = rg.NMRSQuestionConceptID.ToString(),
-                                valueCoded = rg.NMRSAnswerConceptID.ToString()
+                                concept =rg.NMRSQuestionConceptID.ToString(),
+                                value = rg.NMRSAnswerConceptID.ToString(),
+                                groupMembers = new List<Obs>()
                             };
+                            regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
+                            regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
                             artCommencement.obs.Add(regimenObs);
 
                         }
@@ -415,18 +434,23 @@ namespace Common
                                             var dateExit = dateExitX.ElementAt(0);
                                             var dateExitObs = new Obs
                                             {
-                                                concept = dateExit.OMRSConceptID,
-                                                valueDatetime = dExit.ToString("yyyy-MM-dd")
+                                                concept =dateExit.OMRSConceptID,
+                                                value = dExit.ToString("yyyy-MM-dd"),
+                                                groupMembers = new List<Obs>()
                                             };
+                                            dateExitObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateExitObs.concept).UuId;
                                             careTermination.obs.Add(dateExitObs);
                                             careTermination.encounterDatetime = dExit.ToString("yyyy-MM-dd");
 
                                             //Reason for tracking
                                             var trackingObs = new Obs
                                             {
-                                                concept = ((int)TrackingReason.concept).ToString(),
-                                                valueCoded = ((int)TrackingReason.MissedPharmacyRefill).ToString() //default
+                                                concept =((int)TrackingReason.concept).ToString(),
+                                                value = ((int)TrackingReason.MissedPharmacyRefill).ToString(), //default
+                                                groupMembers = new List<Obs>()
                                             };
+                                            trackingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trackingObs.concept).UuId;
+                                            trackingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trackingObs.value).UuId;
                                             careTermination.obs.Add(trackingObs);
                                         }
 
@@ -445,9 +469,11 @@ namespace Common
                                                         var dateTrackedX = dateExitX.ElementAt(0);
                                                         var dateTrackedObs = new Obs
                                                         {
-                                                            concept = dateTrackedX.OMRSConceptID,
-                                                            valueDatetime = dTract.ToString("yyyy-MM-dd")
+                                                            concept =dateTrackedX.OMRSConceptID,
+                                                            value = dTract.ToString("yyyy-MM-dd"),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        dateTrackedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTrackedObs.concept).UuId;
                                                         careTermination.obs.Add(dateTrackedObs);
 
                                                     }
@@ -467,9 +493,11 @@ namespace Common
                                                 {
                                                     var dateMissedObs = new Obs
                                                     {
-                                                        concept = ((int)Concepts.DateMissedAppointment).ToString(),
-                                                        valueDatetime = dMissed.ToString("yyyy-MM-dd")
+                                                        concept =((int)Concepts.DateMissedAppointment).ToString(),
+                                                        value = dMissed.ToString("yyyy-MM-dd"),
+                                                        groupMembers = new List<Obs>()
                                                     };
+                                                    dateMissedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateMissedObs.concept).UuId;
                                                     careTermination.obs.Add(dateMissedObs);
                                                 }
 
@@ -485,23 +513,31 @@ namespace Common
                             {
                                 var ltfuObs = new Obs
                                 {
-                                    concept = ((int)LTFU.concept).ToString(),
-                                    valueCoded = ((int)LTFU.Yes).ToString()
+                                    concept =((int)LTFU.concept).ToString(),
+                                    value = ((int)LTFU.Yes).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                ltfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == ltfuObs.concept).UuId;
+                                ltfuObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == ltfuObs.value).UuId;
                                 careTermination.obs.Add(ltfuObs);
 
                                 var reasonLtfuObs = new Obs
                                 {
-                                    concept = ((int)ReasonForLTFU.concept).ToString(),
-                                    valueCoded = ((int)ReasonForLTFU.Tracked_Not_Located).ToString()
+                                    concept =((int)ReasonForLTFU.concept).ToString(),
+                                    value = ((int)ReasonForLTFU.Tracked_Not_Located).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                reasonLtfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonLtfuObs.concept).UuId;
+                                reasonLtfuObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonLtfuObs.value).UuId;
                                 careTermination.obs.Add(reasonLtfuObs);
 
                                 var dateLtfuObs = new Obs
                                 {
-                                    concept = ((int)Concepts.DateLTFU).ToString(),
-                                    valueDatetime = careTermination.encounterDatetime
+                                    concept =((int)Concepts.DateLTFU).ToString(),
+                                    value = careTermination.encounterDatetime,
+                                    groupMembers = new List<Obs>()
                                 };
+                                dateLtfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateLtfuObs.concept).UuId;
                                 careTermination.obs.Add(dateLtfuObs);
                             }
 
@@ -510,39 +546,53 @@ namespace Common
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept = ((int)PrevExposed.concept).ToString(),
-                                    valueCoded = ((int)PrevExposed.Yes).ToString()
+                                    concept =((int)PrevExposed.concept).ToString(),
+                                    value = ((int)PrevExposed.Yes).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
                                 careTermination.obs.Add(trnsObs);
 
                                 var reasonForTerminationObs = new Obs
                                 {
-                                    concept = ((int)ReasonForTermination.concept).ToString(),
-                                    valueCoded = ((int)ReasonForTermination.Transferred_Out_To_Another_Facility).ToString()
+                                    concept =((int)ReasonForTermination.concept).ToString(),
+                                    value = ((int)ReasonForTermination.Transferred_Out_To_Another_Facility).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
+                                reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
                                 careTermination.obs.Add(reasonForTerminationObs);
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
-                                    valueDatetime = careTermination.encounterDatetime
+                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    value = careTermination.encounterDatetime,
+                                    groupMembers = new List<Obs>()
                                 };
+                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
                                 careTermination.obs.Add(dateTerminatedObs);
                             }
                             if (currentStatus == "Known Death")
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept = ((int)PrevExposed.concept).ToString(),
-                                    valueCoded = ((int)PrevExposed.Yes).ToString()
+                                    concept =((int)PrevExposed.concept).ToString(),
+                                    value = ((int)PrevExposed.Yes).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
                                 careTermination.obs.Add(trnsObs);
 
                                 var reasonForTerminationObs = new Obs
                                 {
-                                    concept = ((int)ReasonForTermination.concept).ToString(),
-                                    valueCoded = ((int)ReasonForTermination.Death).ToString()
+                                    concept =((int)ReasonForTermination.concept).ToString(),
+                                    value = ((int)ReasonForTermination.Death).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
+                                reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
                                 careTermination.obs.Add(reasonForTerminationObs);
 
                                 var cause_death = reader["cause_death"];
@@ -582,48 +632,64 @@ namespace Common
                                         }
                                         var causeOfDesthObs = new Obs
                                         {
-                                            concept = ((int)ReasonForDeath.concept).ToString(),
-                                            valueCoded = conceptId.ToString()
+                                            concept =((int)ReasonForDeath.concept).ToString(),
+                                            value = conceptId.ToString(),
+                                            groupMembers = new List<Obs>()
                                         };
+                                        causeOfDesthObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == causeOfDesthObs.concept).UuId;
+                                        causeOfDesthObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == causeOfDesthObs.value).UuId;
                                         careTermination.obs.Add(causeOfDesthObs);
                                     }
                                 }
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
-                                    valueDatetime = careTermination.encounterDatetime
+                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    value = careTermination.encounterDatetime,
+                                    groupMembers = new List<Obs>()
                                 };
+                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
                                 careTermination.obs.Add(dateTerminatedObs);
                             }
                             if (currentStatus == "Stopped Treatment")
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept = ((int)PrevExposed.concept).ToString(),
-                                    valueCoded = ((int)PrevExposed.Yes).ToString()
+                                    concept =((int)PrevExposed.concept).ToString(),
+                                    value = ((int)PrevExposed.Yes).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
                                 careTermination.obs.Add(trnsObs);
 
                                 var reasonForTerminationObs = new Obs
                                 {
-                                    concept = ((int)ReasonForTermination.concept).ToString(),
-                                    valueCoded = ((int)ReasonForTermination.Discontinued_Care).ToString()
+                                    concept =((int)ReasonForTermination.concept).ToString(),
+                                    value = ((int)ReasonForTermination.Discontinued_Care).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
+                                reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
                                 careTermination.obs.Add(reasonForTerminationObs);
 
                                 var reasonDiscontinuedCareObs = new Obs
                                 {
-                                    concept = ((int)ReasonDiscontinuedCare.concept).ToString(),
-                                    valueCoded = ((int)ReasonDiscontinuedCare.MovedOutOfArea).ToString()
+                                    concept =((int)ReasonDiscontinuedCare.concept).ToString(),
+                                    value = ((int)ReasonDiscontinuedCare.MovedOutOfArea).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                reasonDiscontinuedCareObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonDiscontinuedCareObs.concept).UuId;
+                                reasonDiscontinuedCareObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonDiscontinuedCareObs.value).UuId;
                                 careTermination.obs.Add(reasonDiscontinuedCareObs);
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
-                                    valueDatetime = careTermination.encounterDatetime
+                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    value = careTermination.encounterDatetime,
+                                    groupMembers = new List<Obs>()
                                 };
+                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
                                 careTermination.obs.Add(dateTerminatedObs);
                             }
 
@@ -632,23 +698,31 @@ namespace Common
                             {
                                 var trnsObs = new Obs
                                 {
-                                    concept = ((int)PrevExposed.concept).ToString(),
-                                    valueCoded = ((int)PrevExposed.No).ToString()
+                                    concept =((int)PrevExposed.concept).ToString(),
+                                    value = ((int)PrevExposed.No).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
                                 careTermination.obs.Add(trnsObs);
 
                                 var referredForObs = new Obs
                                 {
-                                    concept = ((int)ReferredFor.concept).ToString(),
-                                    valueCoded = ((int)ReferredFor.ADHERENCE_COUNSELING).ToString()
+                                    concept =((int)ReferredFor.concept).ToString(),
+                                    value = ((int)ReferredFor.ADHERENCE_COUNSELING).ToString(),
+                                    groupMembers = new List<Obs>()
                                 };
+                                referredForObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == referredForObs.concept).UuId;
+                                referredForObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == referredForObs.value).UuId;
                                 careTermination.obs.Add(referredForObs);
 
                                 var dateTerminatedObs = new Obs
                                 {
-                                    concept = ((int)Concepts.DateCareTerminated).ToString(),
-                                    valueDatetime = careTermination.encounterDatetime
+                                    concept =((int)Concepts.DateCareTerminated).ToString(),
+                                    value = careTermination.encounterDatetime,
+                                    groupMembers = new List<Obs>()
                                 };
+                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
                                 careTermination.obs.Add(dateTerminatedObs);
                             }
 
@@ -706,9 +780,11 @@ namespace Common
                                 var artS = artStrs.ElementAt(0);
                                 var fartStartDateObs = new Obs
                                 {
-                                    concept = artS.OMRSConceptID,
-                                    valueDatetime = artStartDate.ToString("yyyy-MM-dd")
+                                    concept =artS.OMRSConceptID,
+                                    value = artStartDate.ToString("yyyy-MM-dd"),
+                                    groupMembers = new List<Obs>()
                                 };
+                                fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;
                                 hivEnrolment.obs.Add(fartStartDateObs);
                             }
                         }
@@ -732,9 +808,11 @@ namespace Common
 
                             var enrolmentDateObs = new Obs
                             {
-                                concept = ((int)Concepts.HivEnrolmentDate).ToString(),
-                                valueDatetime = encDate.ToString("yyyy-MM-dd")
+                                concept =((int)Concepts.HivEnrolmentDate).ToString(),
+                                value = encDate.ToString("yyyy-MM-dd"),
+                                groupMembers = new List<Obs>()
                             };
+                            enrolmentDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == enrolmentDateObs.concept).UuId;
                             hivEnrolment.obs.Add(enrolmentDateObs);
                         }
                     }
@@ -751,9 +829,11 @@ namespace Common
                         {
                             var hivConfirmDateObs = new Obs
                             {
-                                concept = ((int)Concepts.HivConfirmationDate).ToString(),
-                                valueDatetime = confirmDate.ToString("yyyy-MM-dd")
+                                concept =((int)Concepts.HivConfirmationDate).ToString(),
+                                value = confirmDate.ToString("yyyy-MM-dd"),
+                                groupMembers = new List<Obs>()
                             };
+                            hivConfirmDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == hivConfirmDateObs.concept).UuId;
                             hivEnrolment.obs.Add(hivConfirmDateObs);
                         }
 
@@ -763,9 +843,11 @@ namespace Common
                 {
                     var hivConfirmDateObs = new Obs
                     {
-                        concept = ((int)Concepts.HivConfirmationDate).ToString(),
-                        valueDatetime = encDate.ToString("yyyy-MM-dd")
+                        concept =((int)Concepts.HivConfirmationDate).ToString(),
+                        value = encDate.ToString("yyyy-MM-dd"),
+                        groupMembers = new List<Obs>()
                     };
+                    hivConfirmDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == hivConfirmDateObs.concept).UuId;
                     hivEnrolment.obs.Add(hivConfirmDateObs);
                 }
 
@@ -813,9 +895,12 @@ namespace Common
 
                         var careEntryPointObs = new Obs
                         {
-                            concept = ((int)CareEntryPoint.concept).ToString(),
-                            valueCoded = conceptId.ToString()
+                            concept =((int)CareEntryPoint.concept).ToString(),
+                            value = conceptId.ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        careEntryPointObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == careEntryPointObs.concept).UuId;
+                        careEntryPointObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == careEntryPointObs.value).UuId;
                         hivEnrolment.obs.Add(careEntryPointObs);
                     }
                 }
@@ -855,9 +940,12 @@ namespace Common
 
                         var maritalStatusObs = new Obs
                         {
-                            concept = ((int)MaritalStatus.concept).ToString(),
-                            valueCoded = conceptId.ToString()
+                            concept =((int)MaritalStatus.concept).ToString(),
+                            value = conceptId.ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        maritalStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == maritalStatusObs.concept).UuId;
+                        maritalStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == maritalStatusObs.value).UuId;
                         hivEnrolment.obs.Add(maritalStatusObs);
                     }
                 }
@@ -897,9 +985,12 @@ namespace Common
 
                         var educationObs = new Obs
                         {
-                            concept = ((int)EducationLevel.concept).ToString(),
-                            valueCoded = conceptId.ToString()
+                            concept =((int)EducationLevel.concept).ToString(),
+                            value = conceptId.ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        educationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == educationObs.concept).UuId;
+                        educationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == educationObs.value).UuId;
                         hivEnrolment.obs.Add(educationObs);
                     }
                 }
@@ -933,9 +1024,12 @@ namespace Common
 
                         var occupationObs = new Obs
                         {
-                            concept = ((int)Occupation.concept).ToString(),
-                            valueCoded = conceptId.ToString()
+                            concept =((int)Occupation.concept).ToString(),
+                            value = conceptId.ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        occupationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == occupationObs.concept).UuId;
+                        occupationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == occupationObs.value).UuId;
                         hivEnrolment.obs.Add(occupationObs);
                     }
                 }
@@ -949,9 +1043,11 @@ namespace Common
                     {
                         var nextKinObs = new Obs
                         {
-                            concept = ((int)Concepts.NextOfKinName).ToString(),
-                            valueText = Utilities.UnscrambleCharacters(nextKin)
+                            concept =((int)Concepts.NextOfKinName).ToString(),
+                            value = Utilities.UnscrambleCharacters(nextKin),
+                            groupMembers = new List<Obs>()
                         };
+                        nextKinObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == nextKinObs.concept).UuId;
                         hivEnrolment.obs.Add(nextKinObs);
                     }
                 }
@@ -965,9 +1061,11 @@ namespace Common
                     {
                         var phoneKinObs = new Obs
                         {
-                            concept = ((int)Concepts.NextOfKinPhone).ToString(),
-                            valueText = Utilities.UnscrambleNumbers(phoneKin)
+                            concept =((int)Concepts.NextOfKinPhone).ToString(),
+                            value = Utilities.UnscrambleNumbers(phoneKin),
+                            groupMembers = new List<Obs>()
                         };
+                        phoneKinObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == phoneKinObs.concept).UuId;
                         hivEnrolment.obs.Add(phoneKinObs);
                     }
                 }
@@ -1031,9 +1129,12 @@ namespace Common
 
                         var relationKinObs = new Obs
                         {
-                            concept = ((int)NextOfKinRelationship.concept).ToString(),
-                            valueCoded = conceptId.ToString()
+                            concept =((int)NextOfKinRelationship.concept).ToString(),
+                            value = conceptId.ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        relationKinObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == relationKinObs.concept).UuId;
+                        relationKinObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == relationKinObs.value).UuId;
                         hivEnrolment.obs.Add(relationKinObs);
                     }
                 }
@@ -1061,9 +1162,12 @@ namespace Common
 
                         var pregnantObs = new Obs
                         {
-                            concept = ((int)CurrentlyPregnant.concept).ToString(),
-                            valueCoded = conceptId.ToString()
+                            concept =((int)CurrentlyPregnant.concept).ToString(),
+                            value = conceptId.ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        pregnantObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnantObs.concept).UuId;
+                        pregnantObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnantObs.value).UuId;
                         hivEnrolment.obs.Add(pregnantObs);
                     }
                 }
@@ -1091,9 +1195,12 @@ namespace Common
 
                         var breastfeedingObs = new Obs
                         {
-                            concept = ((int)ChildBreastFeeding.concept).ToString(),
-                            valueCoded = conceptId.ToString()
+                            concept =((int)ChildBreastFeeding.concept).ToString(),
+                            value = conceptId.ToString(),
+                            groupMembers = new List<Obs>()
                         };
+                        breastfeedingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == breastfeedingObs.concept).UuId;
+                        breastfeedingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == breastfeedingObs.value).UuId;
                         hivEnrolment.obs.Add(breastfeedingObs);
                     }
                 }
@@ -1157,9 +1264,11 @@ namespace Common
                                         {
                                             var visitDateObs = new Obs
                                             {
-                                                concept = ((int)Concepts.VisitDate).ToString(),
-                                                valueDatetime = visitDateStr
+                                                concept =((int)Concepts.VisitDate).ToString(),
+                                                value = visitDate.ToString("yyyy-MM-dd"),
+                                                groupMembers = new List<Obs>()
                                             };
+                                            visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
                                             obs.Add(visitDateObs);
 
                                             careCard.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
@@ -1179,16 +1288,20 @@ namespace Common
                                                         {
                                                             var systolicObs = new Obs
                                                             {
-                                                                concept = ((int)BloodPressure.Systolic).ToString(),
-                                                                valueNumeric = bps[0]
+                                                                concept =((int)BloodPressure.Systolic).ToString(),
+                                                                value = bps[0],
+                                                                groupMembers = new List<Obs>()
                                                             };
+                                                            systolicObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == systolicObs.concept).UuId;
                                                             obs.Add(systolicObs);
 
                                                             var outDiastObs = new Obs
                                                             {
-                                                                concept = ((int)BloodPressure.Diastolic).ToString(),
-                                                                valueNumeric = bps[1]
+                                                                concept =((int)BloodPressure.Diastolic).ToString(),
+                                                                value = bps[1],
+                                                                groupMembers = new List<Obs>()
                                                             };
+                                                            outDiastObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == outDiastObs.concept).UuId;
                                                             obs.Add(outDiastObs);
                                                         }
                                                     }
@@ -1209,9 +1322,11 @@ namespace Common
                                                     {
                                                         var weightObs = new Obs
                                                         {
-                                                            concept = ((int)Concepts.Weight).ToString(),
-                                                            valueNumeric = wOut.ToString()
+                                                            concept =((int)Concepts.Weight).ToString(),
+                                                            value = wOut.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        weightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == weightObs.concept).UuId;
                                                         obs.Add(weightObs);
                                                         vitals.obs.Add(weightObs);
                                                     }
@@ -1251,9 +1366,12 @@ namespace Common
                                                         }
                                                         var whoStageObs = new Obs
                                                         {
-                                                            concept = ((int)WhoStage.concept).ToString(),
-                                                            valueCoded = conceptId.ToString()
+                                                            concept =((int)WhoStage.concept).ToString(),
+                                                            value = conceptId.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
+                                                        whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
                                                         obs.Add(whoStageObs);
                                                     }
                                                 }
@@ -1283,9 +1401,12 @@ namespace Common
 
                                                     var pregnObs = new Obs
                                                     {
-                                                        concept = ((int)PregnancyStatus.concept).ToString(),
-                                                        valueCoded = pregConceptId.ToString()
+                                                        concept =((int)PregnancyStatus.concept).ToString(),
+                                                        value = pregConceptId.ToString(),
+                                                        groupMembers = new List<Obs>()
                                                     };
+                                                    pregnObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.concept).UuId;
+                                                    pregnObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.value).UuId;
                                                     obs.Add(pregnObs);
                                                 }
                                             }
@@ -1302,9 +1423,12 @@ namespace Common
                                                     {
                                                         var pregnObs = new Obs
                                                         {
-                                                            concept = ((int)PregnancyStatus.concept).ToString(),
-                                                            valueCoded = ((int)PregnancyStatus.breastFeeding).ToString()
+                                                            concept =((int)PregnancyStatus.concept).ToString(),
+                                                            value = ((int)PregnancyStatus.breastFeeding).ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        pregnObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.concept).UuId;
+                                                        pregnObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.value).UuId;
                                                         obs.Add(pregnObs);
                                                     }
                                                 }
@@ -1317,12 +1441,17 @@ namespace Common
                                                 var nextApptDate = nextApptDateStr.ToString();
                                                 if (!string.IsNullOrEmpty(nextApptDate))
                                                 {
-                                                    var nextAptDateObs = new Obs
+                                                    if (DateTime.TryParse(nextApptDate.Trim(), out DateTime nextAppointment))
                                                     {
-                                                        concept = ((int)Concepts.nextAppointmentDate).ToString(),
-                                                        valueDatetime = nextApptDate
-                                                    };
-                                                    obs.Add(nextAptDateObs);
+                                                        var nextAptDateObs = new Obs
+                                                        {
+                                                            concept = ((int)Concepts.nextAppointmentDate).ToString(),
+                                                            value = nextAppointment.ToString("yyyy-MM-dd"),
+                                                            groupMembers = new List<Obs>()
+                                                        };
+                                                        nextAptDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == nextAptDateObs.concept).UuId;
+                                                        obs.Add(nextAptDateObs);
+                                                    }                                                    
                                                 }
                                             }
                                             
@@ -1355,9 +1484,12 @@ namespace Common
 
                                                     var fStatusObs = new Obs
                                                     {
-                                                        concept = ((int)FunctionalStatus.concept).ToString(),
-                                                        valueCoded = conceptId.ToString()
+                                                        concept =((int)FunctionalStatus.concept).ToString(),
+                                                        value = conceptId.ToString(),
+                                                        groupMembers = new List<Obs>()
                                                     };
+                                                    fStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.concept).UuId;
+                                                    fStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.value).UuId;
                                                     obs.Add(fStatusObs);
                                                 }
                                             }
@@ -1368,13 +1500,18 @@ namespace Common
                                                 var height  = heightStr.ToString();
                                                 if (!string.IsNullOrEmpty(height))
                                                 {
-                                                    var heightObs = new Obs
+                                                    if(float.TryParse(height, out float ht))
                                                     {
-                                                        concept = ((int)Concepts.height).ToString(),
-                                                        valueNumeric = height
-                                                    };
-                                                    obs.Add(heightObs);
-                                                    vitals.obs.Add(heightObs);
+                                                        var heightObs = new Obs
+                                                        {
+                                                            concept = ((int)Concepts.height).ToString(),
+                                                            value = (ht*100).ToString(),
+                                                            groupMembers = new List<Obs>()
+                                                        };
+                                                        heightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == heightObs.concept).UuId;
+                                                        obs.Add(heightObs);
+                                                        vitals.obs.Add(heightObs);
+                                                    }                                                    
                                                 }
                                             }
                                             
@@ -1407,9 +1544,12 @@ namespace Common
 
                                                     var tbStatusObs = new Obs
                                                     {
-                                                        concept = ((int)TBStatus.concept).ToString(),
-                                                        valueCoded = conceptId.ToString()
+                                                        concept =((int)TBStatus.concept).ToString(),
+                                                        value = conceptId.ToString(),
+                                                        groupMembers = new List<Obs>()
                                                     };
+                                                    tbStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == tbStatusObs.concept).UuId;
+                                                    tbStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == tbStatusObs.value).UuId;
                                                     obs.Add(tbStatusObs);
                                                 }
                                             }
@@ -1432,17 +1572,23 @@ namespace Common
                                                         // Current regimen Line
                                                         var currentRegLineObs = new Obs
                                                         {
-                                                            concept = ((int)CurrentRegimenLine.concept).ToString(),
-                                                            valueCoded = rg.NMRSQuestionConceptID.ToString()
+                                                            concept =((int)CurrentRegimenLine.concept).ToString(),
+                                                            value = rg.NMRSQuestionConceptID.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
+                                                        currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
                                                         obs.Add(currentRegLineObs);
 
                                                         // Regimen
                                                         var regimenObs = new Obs
                                                         {
-                                                            concept = rg.NMRSQuestionConceptID.ToString(),
-                                                            valueCoded = rg.NMRSAnswerConceptID.ToString()
+                                                            concept =rg.NMRSQuestionConceptID.ToString(),
+                                                            value = rg.NMRSAnswerConceptID.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
+                                                        regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
                                                         obs.Add(regimenObs);
                                                     }
 
@@ -1475,9 +1621,12 @@ namespace Common
 
                                                     var drugAdherenceObs = new Obs
                                                     {
-                                                        concept = ((int)DrugAdhenrence.concept).ToString(),
-                                                        valueCoded = conceptId.ToString()
+                                                        concept =((int)DrugAdhenrence.concept).ToString(),
+                                                        value = conceptId.ToString(),
+                                                        groupMembers = new List<Obs>()
                                                     };
+                                                    drugAdherenceObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceObs.concept).UuId;
+                                                    drugAdherenceObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceObs.value).UuId;
                                                     obs.Add(drugAdherenceObs);
                                                 }
                                             }
@@ -1522,9 +1671,12 @@ namespace Common
 
                                                         var oiObs = new Obs
                                                         {
-                                                            concept = ((int)OIs.concept).ToString(),
-                                                            valueCoded = conceptId.ToString()
+                                                            concept =((int)OIs.concept).ToString(),
+                                                            value = conceptId.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        oiObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiObs.concept).UuId;
+                                                        oiObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiObs.value).UuId;
                                                         obs.Add(oiObs);
                                                     });
                                                 }                                                
@@ -1590,9 +1742,11 @@ namespace Common
                                         {
                                             var visitDateObs = new Obs
                                             {
-                                                concept = ((int)Concepts.VisitDate).ToString(),
-                                                valueDatetime = visitDateStr
+                                                concept =((int)Concepts.VisitDate).ToString(),
+                                                value = visitDate.ToString("yyyy-MM-dd"),
+                                                groupMembers = new List<Obs>()
                                             };
+                                            visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
                                             obs.Add(visitDateObs);
 
                                             pharmacy.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
@@ -1600,9 +1754,10 @@ namespace Common
                                             // Human immunodeficiency virus treatment regimen
                                             var grObs = new Obs
                                             {
-                                                concept = ((int)ARVRegimen.concept).ToString(),
+                                                concept =((int)ARVRegimen.concept).ToString(),
                                                 groupMembers = new List<Obs>()
                                             };
+                                            grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == grObs.concept).UuId;
 
                                             // ----------- Treatment Age Category
                                             if (!string.IsNullOrEmpty(visitDateStr) && !string.IsNullOrEmpty(date_of_birth))
@@ -1611,9 +1766,12 @@ namespace Common
                                                 
                                                 var trxAgeObs = new Obs
                                                 {
-                                                    concept = ((int)TreatmentAge.concept).ToString(),
-                                                    valueCoded = ageAtVist > 14? ((int)TreatmentAge.Adult).ToString() : ((int)TreatmentAge.Child).ToString()
+                                                    concept =((int)TreatmentAge.concept).ToString(),
+                                                    value = ageAtVist > 14? ((int)TreatmentAge.Adult).ToString() : ((int)TreatmentAge.Child).ToString(),
+                                                    groupMembers = new List<Obs>()
                                                 };
+                                                trxAgeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.concept).UuId;
+                                                trxAgeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.value).UuId;
                                                 grObs.groupMembers.Add(trxAgeObs);
                                             }
 
@@ -1631,25 +1789,31 @@ namespace Common
                                                     {
                                                         var durationObs = new Obs
                                                         {
-                                                            concept = ((int)Concepts.MedicationDuration).ToString(),
-                                                            valueNumeric = durationOut.ToString()
+                                                            concept =((int)Concepts.MedicationDuration).ToString(),
+                                                            value = durationOut.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        durationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == durationObs.concept).UuId;
                                                         grObs.groupMembers.Add(durationObs);
 
                                                         // ------ Quantity of medication prescribed per dose
                                                         var prescribedObs = new Obs
                                                         {
-                                                            concept = ((int)Concepts.QuantityPrescribed).ToString(),
-                                                            valueNumeric = durationOut.ToString()
+                                                            concept =((int)Concepts.QuantityPrescribed).ToString(),
+                                                            value = durationOut.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        prescribedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == prescribedObs.concept).UuId;
                                                         grObs.groupMembers.Add(prescribedObs);
 
                                                         // ------ Medication dispensed
                                                         var dispensedObs = new Obs
                                                         {
-                                                            concept = ((int)Concepts.QuantityDispensed).ToString(),
-                                                            valueNumeric = durationOut.ToString()
+                                                            concept =((int)Concepts.QuantityDispensed).ToString(),
+                                                            value = durationOut.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        dispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dispensedObs.concept).UuId;
                                                         grObs.groupMembers.Add(dispensedObs);
 
                                                         if (grObs.groupMembers.Any())
@@ -1678,17 +1842,23 @@ namespace Common
                                                         // Current regimen Line
                                                         var currentRegLineObs = new Obs
                                                         {
-                                                            concept = ((int)CurrentRegimenLine.concept).ToString(),
-                                                            valueCoded = rg.NMRSQuestionConceptID.ToString()
+                                                            concept =((int)CurrentRegimenLine.concept).ToString(),
+                                                            value = rg.NMRSQuestionConceptID.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
+                                                        currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
                                                         grObs.groupMembers.Add(currentRegLineObs);
 
                                                         // Regimen
                                                         var regimenObs = new Obs
                                                         {
-                                                            concept = rg.NMRSQuestionConceptID.ToString(),
-                                                            valueCoded = rg.NMRSAnswerConceptID.ToString()
+                                                            concept =rg.NMRSQuestionConceptID.ToString(),
+                                                            value = rg.NMRSAnswerConceptID.ToString(),
+                                                            groupMembers = new List<Obs>()
                                                         };
+                                                        regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
+                                                        regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
                                                         grObs.groupMembers.Add(regimenObs);
                                                     }
 
@@ -1717,9 +1887,12 @@ namespace Common
 
                                                     var drugAdherenceCounsellingObs = new Obs
                                                     {
-                                                        concept = ((int)AdherenceCounselling.concept).ToString(),
-                                                        valueCoded = conceptId.ToString()
+                                                        concept =((int)AdherenceCounselling.concept).ToString(),
+                                                        value = conceptId.ToString(),
+                                                        groupMembers = new List<Obs>()
                                                     };
+                                                    drugAdherenceCounsellingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.concept).UuId;
+                                                    drugAdherenceCounsellingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.value).UuId;
                                                     obs.Add(drugAdherenceCounsellingObs);
                                                 }
                                             }
@@ -1727,33 +1900,43 @@ namespace Common
                                             // ---- Pick up Reason                                            
                                             var pickUpReasonObs = new Obs
                                             {
-                                                concept = ((int)PickUpReason.concept).ToString(),
-                                                valueCoded = ((int)PickUpReason.Refill).ToString()
+                                                concept =((int)PickUpReason.concept).ToString(),
+                                                value = ((int)PickUpReason.Refill).ToString(),
+                                                groupMembers = new List<Obs>()
                                             };
+                                            pickUpReasonObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.concept).UuId;
+                                            pickUpReasonObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.value).UuId;
                                             obs.Add(pickUpReasonObs);
 
                                             //------ Visit Type                                          
                                             var visitTypeObs = new Obs
                                             {
-                                                concept = ((int)VisitType.concept).ToString(),
-                                                valueCoded = ((int)VisitType.ReturnVisitType).ToString()
+                                                concept =((int)VisitType.concept).ToString(),
+                                                value = ((int)VisitType.ReturnVisitType).ToString(),
+                                                groupMembers = new List<Obs>()
                                             };
+                                            visitTypeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.concept).UuId;
+                                            visitTypeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.value).UuId;
                                             obs.Add(visitTypeObs);
 
                                             //-------- Date ordered                                            
                                             var dateOrderedObs = new Obs
                                             {
-                                                concept = ((int)Concepts.DateOrdered).ToString(),
-                                                valueDatetime = visitDate.ToString("yyyy-MM-dd")
+                                                concept =((int)Concepts.DateOrdered).ToString(),
+                                                value = visitDate.ToString("yyyy-MM-dd"),
+                                                groupMembers = new List<Obs>()
                                             };
+                                            dateOrderedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateOrderedObs.concept).UuId;
                                             obs.Add(dateOrderedObs);
 
                                             //-------- Date dispensed                                            
                                             var dateDispensedObs = new Obs
                                             {
-                                                concept = ((int)Concepts.DateDispensed).ToString(),
-                                                valueDatetime = visitDate.ToString("yyyy-MM-dd")
+                                                concept =((int)Concepts.DateDispensed).ToString(),
+                                                value = visitDate.ToString("yyyy-MM-dd"),
+                                                groupMembers = new List<Obs>()
                                             };
+                                            dateDispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateDispensedObs.concept).UuId;
                                             obs.Add(dateDispensedObs);
                                             pharmacy.obs.AddRange(obs);
                                             pharmacy.obs.Add(grObs);
@@ -1931,6 +2114,7 @@ namespace Common
                 return new List<ARTModel>();
             }
         }
+
     }
 
 }
