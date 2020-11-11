@@ -17,7 +17,9 @@ namespace LAMIS_NMRS
         static void Main(string[] args)
         {
             var apiUrl = Utilities.GetAppConfigItem("rest_api");
-            APIHelper apiHelper = new APIHelper(apiUrl);           
+            APIHelper apiHelper = new APIHelper(apiUrl);
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Starting Migration. Please don't close this window...." + Environment.NewLine);
             MigrateData(apiHelper, 0, 10);
         }
 
@@ -37,6 +39,7 @@ namespace LAMIS_NMRS
                     patients.ForEach(p =>
                     {
                         //migrate person, identifiers, address
+                        var startDate = DateTime.Now;
                         var personUuid = apiHelper.PostMessageWithData<CommonResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
                         if (!string.IsNullOrEmpty(personUuid))
                         {
@@ -45,6 +48,8 @@ namespace LAMIS_NMRS
                                 person = personUuid,
                                 identifiers = p.identifiers
                             };
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.WriteLine("Migrating patient with ID: {0} ... {1}", p.identifiers[0].identifier, Environment.NewLine);
                             var patientUuid = apiHelper.PostMessageWithData<CommonResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
 
                             foreach (var e in p.Encounters)
@@ -55,6 +60,7 @@ namespace LAMIS_NMRS
                             var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
 
                             //Migrate Encounters
+                            Console.WriteLine("Migrating patient's encounters... {0}", Environment.NewLine);
                             foreach (var g in encounterGroups)
                             {
                                 var encounterUuids = new List<string>();
@@ -72,6 +78,10 @@ namespace LAMIS_NMRS
                                 if (string.IsNullOrEmpty(visitUuid))
                                 {
                                     var error = "Clinical Visit failed to migrate. Visit Date: " + g.Key;
+                                    Console.ForegroundColor = ConsoleColor.White;
+                                    Console.WriteLine("Visit migration for patient with ID: {0} {1} {2} at " + visit.startDatetime + " failed with the following message",p.identifiers[0],Environment.NewLine,Environment.NewLine);
+
+                                    Console.ForegroundColor = ConsoleColor.Red;
                                     Console.WriteLine(error);
                                     continue;
                                 }
@@ -79,16 +89,10 @@ namespace LAMIS_NMRS
 
                                 foreach (var enc in encounters)
                                 {
-                                    //obsMigrated += enc.obs.Count();
-
                                     enc.visit = visitUuid;
-
-                                    //var obsList = enc.obs;
-                                    //enc.obs = null;
-                                                              
+ 
                                     enc.obs.ForEach(ol =>
                                     {
-                                        //ol.encounter = encounterUuid;
                                         ol.location = enc.location;
                                         ol.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
                                         ol.person = personUuid;                                                                                      
@@ -99,33 +103,11 @@ namespace LAMIS_NMRS
 
                                             ol.groupMembers.ForEach(og =>
                                             {
-                                                //og.encounter = encounterUuid;
                                                 og.location = enc.location;
                                                 og.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
                                                 og.person = personUuid;
-
-                                                //var cIds2 = nmsConcepts.Where(c => c.ConceptId == og.concept).ToList();
-                                                //if (cIds2.Any())
-                                                //{
-                                                //    og.concept = cIds2[0].UuId;
-
-                                                    //var obsUuid = apiHelper.PostMessageWithData<CommonResponse, Obs>(URLConstants.obs, og).Result.uuid;
-                                                    //if (!string.IsNullOrEmpty(obsUuid))
-                                                    //{
-                                                    //    groupMembers.Add(obsUuid);
-                                                    //}
-                                                    //else
-                                                    //{
-                                                    //    Console.WriteLine("Encounter Obs failed to be migrated");
-                                                    //}
-                                                //}
                                             });
 
-                                            //var obsUuid2 = apiHelper.PostMessageWithData<CommonResponse, Obs>(URLConstants.obs, ol).Result.uuid;
-                                            //if (!string.IsNullOrEmpty(obsUuid2))
-                                            //{
-
-                                            //}
                                         }
                                     });                                        
 
@@ -133,24 +115,36 @@ namespace LAMIS_NMRS
                                     if (!string.IsNullOrEmpty(encounterUuid))
                                     {
                                         encounterMigrated += 1;
-                                        //encounterUuids.Add(encounterUuid);
+                                        obsMigrated += enc.obs.Count();
+                                        enc.obs.ForEach(l => 
+                                        { 
+                                        
+                                            if(l.groupMembers.Any())
+                                                obsMigrated += l.groupMembers.Count();
+                                        });
                                     }
                                     else
                                     {
-                                        Console.WriteLine("Error Migrating Encounter {0}: {1}", Environment.NewLine, Newtonsoft.Json.JsonConvert.SerializeObject(enc));
+                                        Console.ForegroundColor = ConsoleColor.Red;
+                                        Console.WriteLine("Error Migrating Encounter {0}: {1} {2}", Environment.NewLine);
+
+                                        Console.ForegroundColor = ConsoleColor.White;
+                                        Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine);
+
                                     }
                                 }
                             }
-                            var summarry = "Patients Migrated: " + patientsMigrated.ToString() + Environment.NewLine +
-                            "Encounters Migrated: " + encounterMigrated.ToString() + Environment.NewLine +
-                            "Visit Migrated: " + visitMigrated.ToString() + Environment.NewLine +
-                            "Obs Migrated: " + obsMigrated.ToString();
-                            Console.WriteLine(summarry);
+                            var summarry = "Patients: " + patientsMigrated.ToString() +
+                            "; Encounters: " + encounterMigrated.ToString() +
+                            "; Visits: " + visitMigrated.ToString()+
+                            "; Obs: " + obsMigrated.ToString();
+                            
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("Data migrated: {0} {1} {2} Duration: {3} seconds {4} {5}", Environment.NewLine, summarry, Environment.NewLine, (int)Math.Ceiling((DateTime.Now - startDate).TotalSeconds), Environment.NewLine, Environment.NewLine);                            
                         }
 
                     });
 
-                    page += 1;
                     MigrateData(apiHelper, page, pageSize);
                 }               
                             
@@ -158,8 +152,11 @@ namespace LAMIS_NMRS
             catch(Exception ex)
             {
                 var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                Console.WriteLine(message);
-            
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                Console.WriteLine("An error was encountered with the following message:" + Environment.NewLine);
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine(message + Environment.NewLine);                
             }
         }       
     }

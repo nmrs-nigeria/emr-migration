@@ -516,11 +516,10 @@ namespace Common
                                 var ltfuObs = new Obs
                                 {
                                     concept =((int)LTFU.concept).ToString(),
-                                    value = ((int)LTFU.Yes).ToString(),
+                                    value = "true",
                                     groupMembers = new List<Obs>()
                                 };
                                 ltfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == ltfuObs.concept).UuId;
-                                ltfuObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == ltfuObs.value).UuId;
                                 careTermination.obs.Add(ltfuObs);
 
                                 var reasonLtfuObs = new Obs
@@ -1164,7 +1163,7 @@ namespace Common
 
                         var pregnantObs = new Obs
                         {
-                            concept =((int)CurrentlyPregnant.concept).ToString(),
+                            concept = ((int)CurrentlyPregnant.concept).ToString(),
                             value = valueBoolean,
                             groupMembers = new List<Obs>()
                         };
@@ -1324,7 +1323,7 @@ namespace Common
                                                         var weightObs = new Obs
                                                         {
                                                             concept =((int)Concepts.Weight).ToString(),
-                                                            value = wOut.ToString(),
+                                                            value = wOut > 250? "250" : wOut.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         weightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == weightObs.concept).UuId;
@@ -1505,7 +1504,7 @@ namespace Common
                                                         var heightObs = new Obs
                                                         {
                                                             concept = ((int)Concepts.height).ToString(),
-                                                            value = ht < 10? (ht*100).ToString() : ht.ToString(),
+                                                            value = ht != 0 && ht < 10? (ht*10).ToString() : ht == 0? "10" : ht > 272 ? "272" : ht.ToString(),
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         heightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == heightObs.concept).UuId;
@@ -1785,10 +1784,12 @@ namespace Common
 
                                                     if (durationOut > 0 && sts)
                                                     {
+                                                        var durationX = durationOut == 0 ? "30" : durationOut > 180 ? "180" : durationOut.ToString();
+
                                                         var durationObs = new Obs
                                                         {
                                                             concept =((int)Concepts.MedicationDuration).ToString(),
-                                                            value = durationOut.ToString(),
+                                                            value = durationX,
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         durationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == durationObs.concept).UuId;
@@ -1798,7 +1799,7 @@ namespace Common
                                                         var prescribedObs = new Obs
                                                         {
                                                             concept =((int)Concepts.QuantityPrescribed).ToString(),
-                                                            value = durationOut.ToString(),
+                                                            value = durationX,
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         prescribedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == prescribedObs.concept).UuId;
@@ -1808,7 +1809,7 @@ namespace Common
                                                         var dispensedObs = new Obs
                                                         {
                                                             concept =((int)Concepts.QuantityDispensed).ToString(),
-                                                            value = durationOut.ToString(),
+                                                            value = durationX,
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         dispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dispensedObs.concept).UuId;
@@ -1867,55 +1868,29 @@ namespace Common
                                                     }
                                                     else
                                                     {
-                                                        var drgs = drugs.Where(r => r.NAME.ToLower() == regimen.ToLower()).ToList();
-                                                        if (rgs.Any())
+                                                        var drgs = drugs.Where(r => (r.NAME.ToLower() + r.STRENGTH) == regimen.ToLower().Replace(" ", string.Empty)).ToList();
+                                                        if (drgs.Any())
                                                         {
                                                             var drg = drgs[0];                                                       
                                                             var dName = drg.NAME.ToLower();
 
-                                                            if (dName == "isoniazid" || dName == "cotrimoxazole" || dName == "fluconazole" || dName == "nystatin")
+                                                            var oiGrpObs = new Obs
                                                             {
-                                                                // OI Prophylaxis
-                                                                var oiGrpObs = new Obs
-                                                                {
-                                                                    concept = drg.GROUPINGCONCEPT.ToString(),
-                                                                    groupMembers = new List<Obs>()
-                                                                };
-                                                                grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiGrpObs.concept).UuId;
+                                                                concept = drg.GROUPINGCONCEPT.ToString(),
+                                                                groupMembers = new List<Obs>()
+                                                            };
+                                                            oiGrpObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiGrpObs.concept).UuId;
 
-                                                                var oiDrugObs = new Obs
-                                                                {
-                                                                    concept = drg.OPENMRSQUESTIONCONCEPT.ToString(),
-                                                                    value = drg.OPENMRSDRUGCONCEPTID.ToString(),
-                                                                    groupMembers = new List<Obs>()
-                                                                };
-                                                                oiDrugObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.concept).UuId;
-                                                                oiDrugObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.value).UuId;
-                                                                pharmacy.obs.Add(oiDrugObs);
-                                                            }
-                                                            else
+                                                            var oiDrugObs = new Obs
                                                             {
-                                                                if (dName == "rhze/rh" || dName == "rifabutin")
-                                                                {
-                                                                    // Anti-TB Treatment
-                                                                    var oiGrpObs = new Obs
-                                                                    {
-                                                                        concept = drg.GROUPINGCONCEPT.ToString(),
-                                                                        groupMembers = new List<Obs>()
-                                                                    };
-                                                                    grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiGrpObs.concept).UuId;
-
-                                                                    var oiDrugObs = new Obs
-                                                                    {
-                                                                        concept = drg.OPENMRSQUESTIONCONCEPT.ToString(),
-                                                                        value = drg.OPENMRSDRUGCONCEPTID.ToString(),
-                                                                        groupMembers = new List<Obs>()
-                                                                    };
-                                                                    oiDrugObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.concept).UuId;
-                                                                    oiDrugObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.value).UuId;
-                                                                    pharmacy.obs.Add(oiDrugObs);
-                                                                }
-                                                            }
+                                                                concept = drg.OPENMRSQUESTIONCONCEPT.ToString(),
+                                                                value = drg.OPENMRSDRUGCONCEPTID.ToString(),
+                                                                groupMembers = new List<Obs>()
+                                                            };
+                                                            oiDrugObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.concept).UuId;
+                                                            oiDrugObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.value).UuId;
+                                                            oiGrpObs.groupMembers.Add(oiDrugObs);
+                                                            pharmacy.obs.Add(oiGrpObs);                                                            
 
                                                             //Treatment type
                                                             var treatmentTyeObs = new Obs

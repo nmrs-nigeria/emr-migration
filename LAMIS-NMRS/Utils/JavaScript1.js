@@ -38,6 +38,7 @@
             "value": "160539"
         },
         {
+            "encounter": "7d587ce2-1b95-45f6-8b25-72a41bba645a",
             "person": "369f8fe4-882e-4a7c-a85b-3b001d4739e1",
             "obsDatetime": "2020-11-10",
             "concept": "1054AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
