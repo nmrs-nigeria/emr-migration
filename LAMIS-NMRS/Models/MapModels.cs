@@ -58,8 +58,11 @@ namespace LAMIS_NMRS.Models
         public string Positive { get; set; }
         public string Negative { get; set; }
         public string Datatype { get; set; }
+        public string ConceptBoolean { get; set; }
+        public string MinimumValue { get; set; }
+        public string MaximumValue { get; set; }
     }
-
+    
     public class LabData
     {
         public string laboratory_id { get; set; }

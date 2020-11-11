@@ -19,8 +19,7 @@ namespace LAMIS_NMRS
             var apiUrl = Utilities.GetAppConfigItem("rest_api");
             APIHelper apiHelper = new APIHelper(apiUrl);
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("Starting Migration. Please don't close this window...." + Environment.NewLine);
-
+            Console.WriteLine("Starting Migration. Please don't close this window...." + Environment.NewLine);            
             MigrateData(apiHelper, 0, 10);
         }
         static DateTime startDate = DateTime.Now;
@@ -34,12 +33,16 @@ namespace LAMIS_NMRS
             try
             {               
                 page += 1;
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Retrieving patients...{0}", Environment.NewLine);
                 var patients = new DataBuilder().BuildPatientInfo(pageSize, page);
                 if (patients.Any())
                 {
                     patients.ForEach(p =>
                     {
-                        //migrate person, identifiers, address                        
+                        //migrate person, identifiers, address   
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
                         var personUuid = apiHelper.PostMessageWithData<CommonResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
                         if (!string.IsNullOrEmpty(personUuid))
                         {
@@ -47,9 +50,7 @@ namespace LAMIS_NMRS
                             {
                                 person = personUuid,
                                 identifiers = p.identifiers
-                            };
-                            Console.ForegroundColor = ConsoleColor.White;
-                            Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
+                            };                           
                             var patientUuid = apiHelper.PostMessageWithData<CommonResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
 
                             foreach (var e in p.Encounters)
@@ -107,7 +108,6 @@ namespace LAMIS_NMRS
                                                 og.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
                                                 og.person = personUuid;
                                             });
-
                                         }
                                     });                                        
 
@@ -138,7 +138,10 @@ namespace LAMIS_NMRS
                             "; Obs: " + obsMigrated.ToString();
                             
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine("Total Data Migrated: {0}{1}{2}Total Duration: {3} seconds{4}{5}", Environment.NewLine, summarry, Environment.NewLine, (DateTime.Now - startDate).ToString("hh:mm:ss"), Environment.NewLine, Environment.NewLine);                            
+                            Console.WriteLine("Total Data Migrated:");
+                            Console.WriteLine(summarry);
+                            var d = (DateTime.Now - startDate).ToString(@"hh\:mm\:ss");
+                            Console.WriteLine("Total Duration: {0}{1}{2}",d, Environment.NewLine, Environment.NewLine);                           
                         }
 
                     });

@@ -2037,8 +2037,7 @@ namespace Common
                             if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
                             {
                                 var l = new Encounter
-                                {
-                                    encounterType = "7ccf3847-7bc3-42e5-8b7e-4125712660ea", //lab
+                                {                                    
                                     encounterDatetime = "",
                                     location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
                                     form = "889ce948-f1ee-4656-91af-147a9e760309", //lab order and result form
@@ -2080,30 +2079,99 @@ namespace Common
                                         date_r.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == date_r.concept).UuId;
                                         l.obs.Add(date_r);
                                     }
-                                }                                
+                                }
 
                                 // lab_no
-                                var lab_no = new Obs
+                                if (!string.IsNullOrEmpty(lab.labno))
                                 {
-                                    concept = ((int)Concepts.LabNumber).ToString(),
-                                    value = lab.labno,
-                                    groupMembers = new List<Obs>()
-                                };
-                                lab_no.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_no.concept).UuId;
-                                l.obs.Add(lab_no);
+                                    var lab_no = new Obs
+                                    {
+                                        concept = ((int)Concepts.LabNumber).ToString(),
+                                        value = lab.labno,
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    lab_no.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_no.concept).UuId;
+                                    l.obs.Add(lab_no);
+                                }
 
                                 //Tests made and results
                                 //check for result   
                                 if (!string.IsNullOrEmpty(lab.resultab))
                                 {
-                                    var lab_test = new Obs
+                                    var testType = labs.FirstOrDefault(m => m.Labtest_Id == lab.labtest_id);
+                                    if(testType != null)
                                     {
-                                        concept = labs.FirstOrDefault(m => m.Labtest_Id == lab.labtest_id).Openmrsabsoluteconceptid.ToString(),
-                                        value = lab.resultab,
-                                        groupMembers = new List<Obs>()
-                                    };
-                                    lab_test.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_test.concept).UuId;
-                                    l.obs.Add(lab_test);
+                                        ////if(!string.IsNullOrEmpty(testType.ConceptBoolean))
+                                        ////{
+                                        ////    var labTestTypeObs = new Obs
+                                        ////    {
+                                        ////        concept = testType.ConceptBoolean,
+                                        ////        value = "true",
+                                        ////        groupMembers = new List<Obs>()
+                                        ////    };
+                                        ////    labTestTypeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == labTestTypeObs.concept).UuId;
+                                        ////    l.obs.Add(labTestTypeObs);
+                                        ////}
+
+                                        if (!string.IsNullOrEmpty(testType.Datatype))
+                                        {
+                                            if(testType.Datatype.ToLower() == "coded")
+                                            {
+                                                var outcome = lab.resultab == "0" ? testType.Negative : testType.Negative;
+                                                var labTestTypeObs = new Obs
+                                                {
+                                                    concept = testType.ConceptBoolean,
+                                                    value = outcome,
+                                                    groupMembers = new List<Obs>()
+                                                };
+                                                labTestTypeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == labTestTypeObs.concept).UuId;
+                                                labTestTypeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == labTestTypeObs.value).UuId;
+                                                l.obs.Add(labTestTypeObs);
+                                            }       
+                                            
+                                            if(testType.Datatype.ToLower() == "numeric" && !string.IsNullOrEmpty(lab.resultab))
+                                            {
+                                                var outcome = 0;
+                                                var maxValue = 0;
+                                                var minValue = 0;
+
+                                                if (!string.IsNullOrEmpty(testType.MaximumValue))
+                                                {
+                                                    if(int.TryParse(testType.MaximumValue, out int max_Value))
+                                                    {
+                                                        maxValue = max_Value;
+                                                    }
+                                                }
+
+                                                if (!string.IsNullOrEmpty(testType.MinimumValue))
+                                                {
+                                                    if (int.TryParse(testType.MinimumValue, out int min_Value))
+                                                    {
+                                                        minValue = min_Value;
+                                                    }
+                                                }
+
+                                                if (int.TryParse(lab.resultab, out int out_come))
+                                                {
+                                                    outcome = out_come;
+                                                }
+
+                                                var result = maxValue > 0 && outcome > maxValue ? maxValue : !string.IsNullOrEmpty(testType.MinimumValue) && outcome < minValue ? minValue : outcome;
+
+                                                var lab_test = new Obs
+                                                {
+                                                    concept = labs.FirstOrDefault(m => m.Labtest_Id == lab.labtest_id).Openmrsabsoluteconceptid,
+                                                    value = result.ToString(),
+                                                    groupMembers = new List<Obs>()
+                                                };
+                                                lab_test.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_test.concept).UuId;
+                                                l.obs.Add(lab_test);
+                                            }
+                                        }
+
+                                        l.encounterType = "7ccf3847-7bc3-42e5-8b7e-4125712660ea"; //lab
+                                    }
+                                    
                                 }
                                 labTets.Add(l);
                             }
@@ -2356,6 +2424,9 @@ namespace Common
                         var positive = worksheet.Cells["H" + i].Value;
                         var negative = worksheet.Cells["I" + i].Value;
                         var datatype = worksheet.Cells["J" + i].Value;
+                        var conceptBoolean = worksheet.Cells["K" + i].Value;
+                        var minimumValue = worksheet.Cells["L" + i].Value;
+                        var maximumValue = worksheet.Cells["M" + i].Value;
 
                         labs.Add(new Lab
                         {
@@ -2368,7 +2439,10 @@ namespace Common
                             Openmrspcconceptid = conceptID != null ? conceptID.ToString() : "",
                             Positive = positive != null ? positive.ToString() : "",
                             Negative = negative != null ? negative.ToString() : "",
-                            Datatype = datatype != null ? datatype.ToString() : ""
+                            Datatype = datatype != null ? datatype.ToString() : "",
+                            ConceptBoolean = conceptBoolean != null ? conceptBoolean.ToString() : "",
+                            MinimumValue = minimumValue != null ? minimumValue.ToString() : "",
+                            MaximumValue = maximumValue != null ? maximumValue.ToString() : ""
                         });
                     }
 

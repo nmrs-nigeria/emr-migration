@@ -221,6 +221,13 @@ namespace LAMIS_NMRS.Utils
         Unknown = 1067
     }
 
+    public enum UrinePregnancyTest
+    {
+        concept = 45,
+        Negative = 664,
+        Positive = 703
+    }
+
     public enum CurrentlyPregnant
     {
         concept = 1434,
