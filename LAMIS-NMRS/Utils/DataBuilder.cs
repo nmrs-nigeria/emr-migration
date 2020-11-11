@@ -2120,7 +2120,7 @@ namespace Common
                                                 var outcome = lab.resultab == "0" ? testType.Negative : testType.Negative;
                                                 var labTestTypeObs = new Obs
                                                 {
-                                                    concept = testType.ConceptBoolean,
+                                                    concept = testType.Openmrsabsoluteconceptid,
                                                     value = outcome,
                                                     groupMembers = new List<Obs>()
                                                 };
@@ -2160,7 +2160,7 @@ namespace Common
 
                                                 var lab_test = new Obs
                                                 {
-                                                    concept = labs.FirstOrDefault(m => m.Labtest_Id == lab.labtest_id).Openmrsabsoluteconceptid,
+                                                    concept = testType.Openmrsabsoluteconceptid,
                                                     value = result.ToString(),
                                                     groupMembers = new List<Obs>()
                                                 };
