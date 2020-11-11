@@ -20,9 +20,10 @@ namespace LAMIS_NMRS
             APIHelper apiHelper = new APIHelper(apiUrl);
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Starting Migration. Please don't close this window...." + Environment.NewLine);
+
             MigrateData(apiHelper, 0, 10);
         }
-
+        static DateTime startDate = DateTime.Now;
         static int patientsMigrated = 0;
         static int encounterMigrated = 0;
         static int obsMigrated = 0;
@@ -38,8 +39,7 @@ namespace LAMIS_NMRS
                 {
                     patients.ForEach(p =>
                     {
-                        //migrate person, identifiers, address
-                        var startDate = DateTime.Now;
+                        //migrate person, identifiers, address                        
                         var personUuid = apiHelper.PostMessageWithData<CommonResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
                         if (!string.IsNullOrEmpty(personUuid))
                         {
@@ -126,11 +126,9 @@ namespace LAMIS_NMRS
                                     else
                                     {
                                         Console.ForegroundColor = ConsoleColor.Red;
-                                        Console.WriteLine("Error Migrating Encounter {0}: {1}{2}", Environment.NewLine);
-
+                                        Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
                                         Console.ForegroundColor = ConsoleColor.White;
-                                        Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine);
-
+                                        Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
                                     }
                                 }
                             }
@@ -140,7 +138,7 @@ namespace LAMIS_NMRS
                             "; Obs: " + obsMigrated.ToString();
                             
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine("Total Data Migrated: {0}{1}{2}Duration: {3} seconds{4}{5}", Environment.NewLine, summarry, Environment.NewLine, (int)Math.Ceiling((DateTime.Now - startDate).TotalSeconds), Environment.NewLine, Environment.NewLine);                            
+                            Console.WriteLine("Total Data Migrated: {0}{1}{2}Total Duration: {3} seconds{4}{5}", Environment.NewLine, summarry, Environment.NewLine, (DateTime.Now - startDate).ToString("hh:mm:ss"), Environment.NewLine, Environment.NewLine);                            
                         }
 
                     });

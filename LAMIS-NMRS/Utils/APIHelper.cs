@@ -60,7 +60,7 @@ namespace LAMIS_NMRS.Utils
             else
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Error {0}: ", Environment.NewLine);
+                Console.WriteLine("Error: {0}", Environment.NewLine);
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(data));
                 throw new ApplicationException(await response.Content.ReadAsStringAsync());

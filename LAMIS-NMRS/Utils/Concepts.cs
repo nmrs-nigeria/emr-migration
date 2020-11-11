@@ -22,7 +22,10 @@ namespace LAMIS_NMRS.Utils
         QuantityPrescribed = 160856,
         QuantityDispensed = 1443,
         DateOrdered = 164989,
-        DateDispensed = 164989
+        DateDispensed = 164989,
+        DateCollected = 159951,
+        DateReported = 165414,
+        LabNumber = 165715
     }
 
     public enum ReferredFor

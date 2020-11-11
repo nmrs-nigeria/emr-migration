@@ -26,6 +26,8 @@ namespace Common
         List<Regimen> regimens;
         List<NmrsConcept> nmsConcepts;
         List<Drug> drugs;
+        List<Lab> labs;
+        List<LabData> labData;
         string rootDir;
 
         public DataBuilder()
@@ -33,7 +35,6 @@ namespace Common
             rootDir = Directory.GetCurrentDirectory();
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
         }
-     
         public List<Patient> BuildPatientInfo(int itemsPerPage, int pageNumber)
         {
             var patients = new List<Patient>();
@@ -43,8 +44,10 @@ namespace Common
                 regimens = GetRegimen();
                 nmsConcepts = new Utilities().GetConcepts();
                 drugs = GetDrugs();
+                labs = GetLabs();
+                labData = GetLabData();
 
-                if (!regimens.Any() || !nmsConcepts.Any() || !drugs.Any())
+                if (!regimens.Any() || !nmsConcepts.Any() || !drugs.Any() || !labs.Any())
                 {
                     Console.WriteLine("ERROR: Regimen/Drugs or NMRS Concepts data List could not be retrieved. Command Aborted");
                     return new List<Patient>();
@@ -238,6 +241,18 @@ namespace Common
                                                     if (!string.IsNullOrEmpty(p.encounterType))
                                                     {
                                                         patient.Encounters.Add(p);
+                                                    }
+                                                });
+                                            }
+
+                                            var labInfo = BuildLab(patientId);
+                                            if (labInfo.Any())
+                                            {
+                                                labInfo.ForEach(l =>
+                                                {
+                                                    if (!string.IsNullOrEmpty(l.encounterType))
+                                                    {
+                                                        patient.Encounters.Add(l);
                                                     }
                                                 });
                                             }
@@ -2004,6 +2019,108 @@ namespace Common
                 return new List<Encounter>();
             }
         }
+        public List<Encounter> BuildLab(long patientId)
+        {
+            try
+            {
+                var labTets = new List<Encounter>();
+                                               
+                var labDataList = labData.Where(m => m.patient_id == patientId.ToString()).ToList();
+                if (labDataList.Any())
+                {
+                    labDataList.ForEach(lab =>
+                    {
+                        var visitDateX = lab.date_collected;
+                        if (visitDateX != null)
+                        {
+                            var visitDateStr = visitDateX.ToString();
+                            if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
+                            {
+                                var l = new Encounter
+                                {
+                                    encounterType = "7ccf3847-7bc3-42e5-8b7e-4125712660ea", //lab
+                                    encounterDatetime = "",
+                                    location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
+                                    form = "889ce948-f1ee-4656-91af-147a9e760309", //lab order and result form
+                                    obs = new List<Obs>()
+                                };
+
+                                var visitDateObs = new Obs
+                                {
+                                    concept = ((int)Concepts.VisitDate).ToString(),
+                                    value = visitDate.ToString("yyyy-MM-dd"),
+                                    groupMembers = new List<Obs>()
+                                };
+                                visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
+                                l.obs.Add(visitDateObs);
+
+                                l.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
+
+                                // Date collected
+                                var date_c = new Obs
+                                {
+                                    concept = ((int)Concepts.DateCollected).ToString(),
+                                    value = visitDate.ToString("yyyy-MM-dd"),
+                                    groupMembers = new List<Obs>()
+                                };
+                                date_c.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == date_c.concept).UuId;
+                                l.obs.Add(date_c);
+
+                                // Date reported
+                                if (!string.IsNullOrEmpty(lab.date_reported))
+                                {
+                                    if (DateTime.TryParse(lab.date_reported.Trim(), out DateTime date_reported))
+                                    {
+                                        var date_r = new Obs
+                                        {
+                                            concept = ((int)Concepts.DateReported).ToString(),
+                                            value = date_reported.ToString("yyyy-MM-dd"),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        date_r.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == date_r.concept).UuId;
+                                        l.obs.Add(date_r);
+                                    }
+                                }                                
+
+                                // lab_no
+                                var lab_no = new Obs
+                                {
+                                    concept = ((int)Concepts.LabNumber).ToString(),
+                                    value = lab.labno,
+                                    groupMembers = new List<Obs>()
+                                };
+                                lab_no.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_no.concept).UuId;
+                                l.obs.Add(lab_no);
+
+                                //Tests made and results
+                                //check for result   
+                                if (!string.IsNullOrEmpty(lab.resultab))
+                                {
+                                    var lab_test = new Obs
+                                    {
+                                        concept = labs.FirstOrDefault(m => m.Labtest_Id == lab.labtest_id).Openmrsabsoluteconceptid.ToString(),
+                                        value = lab.resultab,
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    lab_test.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == lab_test.concept).UuId;
+                                    l.obs.Add(lab_test);
+                                }
+                                labTets.Add(l);
+                            }
+                        }
+
+                    });
+                }
+
+                return labTets;
+            }
+            catch(Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new List<Encounter>();
+            }
+        }
         public string SanitiseDrug(string regimen)
         {
             if(regimen.Contains('(') || regimen.Contains(')'))
@@ -2031,7 +2148,7 @@ namespace Common
                     var worksheet = package.Workbook.Worksheets.FirstOrDefault();
                     // get number of rows and columns in the sheets
                     int rows = worksheet.Dimension.Rows;
-                    int columns = worksheet.Dimension.Columns;
+                    
 
                     // loop through the worksheet rows and columns
                     for (int i = 2; i <= rows; i++)
@@ -2077,7 +2194,7 @@ namespace Common
                     var worksheet = package.Workbook.Worksheets.FirstOrDefault();
                     // get number of rows and columns in the sheets
                     int rows = worksheet.Dimension.Rows;
-                    int columns = worksheet.Dimension.Columns;
+                    
 
                     // loop through the worksheet rows and columns
                     for (int i = 2; i <= rows; i++)
@@ -2124,7 +2241,7 @@ namespace Common
                     var worksheet = package.Workbook.Worksheets.FirstOrDefault();
                     // get number of rows and columns in the sheets
                     int rows = worksheet.Dimension.Rows;
-                    int columns = worksheet.Dimension.Columns;
+                    
 
                     // loop through the worksheet rows and columns
                     for (int i = 2; i <= rows; i++)
@@ -2178,7 +2295,7 @@ namespace Common
                     var worksheet = package.Workbook.Worksheets.FirstOrDefault();
                     // get number of rows and columns in the sheets
                     int rows = worksheet.Dimension.Rows;
-                    int columns = worksheet.Dimension.Columns;
+                    
 
                     // loop through the worksheet rows and columns
                     for (int i = 2; i <= rows; i++)
@@ -2212,7 +2329,129 @@ namespace Common
                 return new List<ARTModel>();
             }
         }
+        public List<Lab> GetLabs()
+        {
+            var labs = new List<Lab>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"Templates", @"LabTests.xlsx");
+                FileInfo fileInfo = new FileInfo(path);
+                using (var package = new ExcelPackage(fileInfo))
+                {
+                    var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                    // get number of rows and columns in the sheets
+                    int rows = worksheet.Dimension.Rows;
+                    
 
+                    // loop through the worksheet rows and columns
+                    for (int i = 2; i <= rows; i++)
+                    {
+                        var labtest_id = worksheet.Cells["A" + i].Value;
+                        var lab_Category_id = worksheet.Cells["B" + i].Value;
+                        var description = worksheet.Cells["C" + i].Value;
+                        var measureab = worksheet.Cells["D" + i].Value;
+                        var measurepc = worksheet.Cells["E" + i].Value;
+                        var absolute_concept = worksheet.Cells["F" + i].Value;
+                        var conceptID = worksheet.Cells["G" + i].Value;
+                        var positive = worksheet.Cells["H" + i].Value;
+                        var negative = worksheet.Cells["I" + i].Value;
+                        var datatype = worksheet.Cells["J" + i].Value;
+
+                        labs.Add(new Lab
+                        {
+                            Labtest_Id = labtest_id != null ? labtest_id.ToString() : "",
+                            Labtestcategory_Id = lab_Category_id != null ? lab_Category_id.ToString() : "",
+                            Description = description != null ? description.ToString() : "",
+                            Measureab = measureab != null ? measureab.ToString() : "",
+                            Measurepc = measurepc != null ? measurepc.ToString() : "",
+                            Openmrsabsoluteconceptid = absolute_concept != null ? absolute_concept.ToString() : "",
+                            Openmrspcconceptid = conceptID != null ? conceptID.ToString() : "",
+                            Positive = positive != null ? positive.ToString() : "",
+                            Negative = negative != null ? negative.ToString() : "",
+                            Datatype = datatype != null ? datatype.ToString() : ""
+                        });
+                    }
+
+                }
+                return labs;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new List<Lab>();
+            }
+        }        
+        public List<LabData> GetLabData()
+        {
+            var labs = new List<LabData>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"SheetData", @"laboratory.xlsx");
+                FileInfo fileInfo = new FileInfo(path);
+                if(fileInfo.Exists)
+                {
+                    using (var package = new ExcelPackage(fileInfo))
+                    {
+                        var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                        // get number of rows and columns in the sheets
+                        int rows = worksheet.Dimension.Rows;
+
+                        // loop through the worksheet rows and columns
+                        for (int i = 2; i <= rows; i++)
+                        {
+                            var laboratory_id = worksheet.Cells["A" + i].Value;
+                            var patient_id = worksheet.Cells["B" + i].Value;
+                            var facility_id = worksheet.Cells["C" + i].Value;
+                            var date_reported = worksheet.Cells["D" + i].Value;
+                            var date_collected = worksheet.Cells["E" + i].Value;
+                            var labno = worksheet.Cells["F" + i].Value;
+                            var resultab = worksheet.Cells["G" + i].Value;
+                            var resultpc = worksheet.Cells["H" + i].Value;
+                            var comment = worksheet.Cells["I" + i].Value;
+                            var labtest_id = worksheet.Cells["J" + i].Value;
+                            var time_stamp = worksheet.Cells["K" + i].Value;
+                            var uploaded = worksheet.Cells["L" + i].Value;
+                            var time_uploaded = worksheet.Cells["M" + i].Value;
+                            var user_id = worksheet.Cells["N" + i].Value;
+                            var id_uuid = worksheet.Cells["O" + i].Value;
+                            var uuid = worksheet.Cells["P" + i].Value;
+                            var archived = worksheet.Cells["Q" + i].Value;
+
+                            labs.Add(new LabData
+                            {
+                                laboratory_id = laboratory_id != null ? laboratory_id.ToString() : "",
+                                patient_id = patient_id != null ? patient_id.ToString() : "",
+                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                date_reported = date_reported != null ? date_reported.ToString() : "",
+                                date_collected = date_collected != null ? date_collected.ToString() : "",
+                                labno = labno != null ? labno.ToString() : "",
+                                resultab = resultab != null ? resultab.ToString() : "",
+                                resultpc = resultpc != null ? resultpc.ToString() : "",
+                                comment = comment != null ? comment.ToString() : "",
+                                labtest_id = labtest_id != null ? labtest_id.ToString() : "",
+                                time_stamp = time_stamp != null ? time_stamp.ToString() : "",
+                                uploaded = uploaded != null ? uploaded.ToString() : "",
+                                time_uploaded = time_uploaded != null ? time_uploaded.ToString() : "",
+                                user_id = user_id != null ? user_id.ToString() : "",
+                                id_uuid = id_uuid != null ? id_uuid.ToString() : "",
+                                uuid = uuid != null ? uuid.ToString() : "",
+                                archived = archived != null ? archived.ToString() : ""
+                            });
+                        }
+
+                    }
+                    return labs;
+                }
+                return new List<LabData>();
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return labs;
+            }
+        }
     }
 
 }
