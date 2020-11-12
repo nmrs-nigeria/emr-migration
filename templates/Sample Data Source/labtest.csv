@@ -1,0 +1,38 @@
+labtest_id,labtestcategory_id,description,measureab,measurepc
+1,4,CD4,cells/ul,%
+2,2,WBC,x10^9 c/l,""
+3,2,Lymphocytes,/mm3,%
+4,2,Monocytes,/mm3,%
+5,2,Polymorphs,/mm3,%
+6,2,Eosinophils,/mm3,%
+7,2,Basophils,/mm3,%
+8,2,Haemoglobin (HB),g/dl,""
+9,2,PCV,"",%
+10,2,Platelets,x10^9 c/l,""
+11,1,K+,umol/l,""
+12,1,Creatinine,umol/l,""
+13,1,GLUCOSE,mmol/l,""
+14,1,AST/SGOT,u/l,""
+15,1,ALT/SGPT,u/l,""
+16,4,Viral Load,copies/ml,""
+17,1,Na+,mmol/l,""
+18,1,Cl-,mmol/l,""
+19,1,HCO3,mmol/l,""
+20,1,BUN,mmol/l,""
+21,1,Total Bilirubin,umol/l,""
+22,1,Amylase,u/l,""
+23,1,Total Cholesterol,mmol/l,""
+24,1,LDL,mmol/l,""
+25,1,HDL,mmol/l,""
+26,1,Triglyceride,mmol/l,""
+27,1,HBsAg,+/-,""
+28,1,Pregnancy,+/-,""
+29,1,Malaria Parasite,+/-,""
+30,3,VIA/Pap Smear,+/-,""
+31,1,Fasting Glucose (FBS),mmol/l,""
+32,4,VDRL,+/-,""
+33,1,Alk. Phosphatase,u/l,""
+34,3,PROTEIN,g/dl,""
+35,3,Sputum Smear,+/-,""
+36,1,HCV,+/-,""
+37,3,Stool microscopy,+/-,""

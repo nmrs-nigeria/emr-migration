@@ -1,0 +1,102 @@
+drug_id,abbrev,name,strength,pack_size,doseform,morning,afternoon,evening,item_id
+27,LPV/r,Lopinavir/Ritonavir,200/50mg,60,Capsules,2,0,2,27
+28,IDV/r,Indinavir/Ritonavir,400/100mg,60,Capsules,1,1,1,28
+29,ATV/r,Atazanavir/Ritonavir,300/100mg,60,Capsules,1,0,0,29
+30,FTC,Emtricitabine,200mg,60,Capsules,1,0,0,30
+31,TDF,Tenofovir,300mg,60,Capsules,0,0,1,31
+32,TDF/FTC,Tenofovir/Emtricitabine,300/200mg,60,Capsules,1,0,0,32
+33,d4t,Stavudine,20mg,60,Capsules,1,0,1,33
+34,d4t,Stavudine,6mg,60,Capsules,1,0,1,34
+35,d4t,Stavudine,12mg,60,Capsules,1,0,1,35
+36,3TC,Lamivudine,30mg,60,Tablets,0,0,1,36
+37,3TC,Lamivudine,60mg,60,Tablets,0,0,1,37
+38,NVP,Nevirapine,50mg,60,Tablets,1,0,1,38
+39,AZT,Zidovudine,60mg,60,Tablets,1,0,1,39
+41,CTX,Cotrimoxazole,960mg,336,Tablets,1,0,0,41
+42,CTX,Cotrimoxazole,480mg,240,Tablets,2,0,0,42
+43,CTX,Cotrimoxazole,240mg/5ml,100,Suspension,3,0,3,43
+44,ACY,Acyclovir,200mg,100,Tablets,1,0,0,44
+45,AMOX/C,Amoxycillin/Clavulanate,625mg,100,Tablets,1,0,0,45
+46,AMOX/C,Amoxycillin/Clavulanate,457mg/5ml,100,Syrup,3,0,3,46
+47,FLU,Fluconazole,50mg,100,Tablets,1,0,0,47
+48,FLU,Fluconazole,50mg/5ml,100,Suspension,3,0,3,48
+49,FLU,Fluconazole,200mg,100,Tablets,1,0,0,49
+50,NYS,Nystatin,100,000iu/ml,100,Suspension,3,0,3,50
+51,TDZ,Tinidazole,500mg,100,Tablets,1,0,0,51
+52,AZI,Azithromycin,250mg,100,Tablets,1,0,0,52
+53,BPCN,Benzathine Penicillin,"",100,Injectables,1,0,0,53
+54,CFX,Ceftriaxone,1g,100,Injectables,1,0,0,54
+55,CIPRO,Ciprofloxacin,500mg,100,Tablets,1,0,0,55
+1,EFV,Efavirenz,600mg,30,Capsules,1,0,1,1
+2,EFV,Efavirenz,200mg,90,Capsules,1,0,1,2
+3,3TC,Lamivudine,150mg,60,Tablets,1,0,1,3
+4,3TC,Lamivudine,10mg/ml,60,Suspension,3,0,3,4
+5,3TC,Lamivudine,300mg,60,Tablets,0,0,1,5
+6,AZT/3TC,Zidovudine/Lamivudine,300/150mg,60,Tablets,1,0,1,6
+7,d4T/3TC/EFV,Stavudine/Lamivudine/Efavirenz,6/30/200mg,60,Tablets,1,0,1,7
+8,d4T/3TC/EFV,Stavudine/Lamivudine/Efavirenz,12/60/200mg,60,Tablets,1,0,1,8
+9,d4T/3TC/NVP,Stavudine/Lamivudine/Nevirapine,6/30/50mg,60,Tablets,1,0,1,9
+10,d4T/3TC/NVP,Stavudine/Lamivudine/Nevirapine,12/60/100mg,60,Tablets,1,0,1,10
+11,AZT/3TC/NVP,Zidovudine/Lamivudine/Nevirapine,60/30/50mg,60,Tablets,1,0,1,11
+12,AZT/3TC/EFV,Zidovudine/Lamivudine/Efavirenz,60/30/200mg,60,Tablets,1,0,1,12
+13,NVP,Nevirapine,10mg/ml,60,Suspension,3,0,3,13
+14,NVP,Nevirapine,200mg,60,Tablets,1,0,1,14
+15,d4t,Stavudine,30mg,60,Capsules,1,0,1,15
+16,d4t,Stavudine,1mg/ml,60,Suspension,3,0,3,16
+17,AZT,Zidovudine,100mg,60,Capsules,1,0,1,17
+18,AZT,Zidovudine,10mg/ml,60,Syrup,3,0,3,18
+19,AZT,Zidovudine,300mg,60,Tablets,1,0,1,19
+20,AZT,Zidovudine,60mg,60,Tablets,1,0,1,20
+21,DDI,Didanosine,10mg/ml,60,Suspension,3,0,3,21
+22,DDI,Didanosine,400mg,60,Tablets,1,0,1,22
+23,ABC,Abacavir,300mg,60,Tablets,1,0,1,23
+24,ABC,Abacavir,20mg/ml,60,Oral Solution,3,0,3,24
+25,ABC,Abacavir,60mg,60,Tablets,1,0,1,25
+26,LPV/r,Lopinavir/Ritonavir,80/20mg/ml,60,Oral Solution,3,0,3,26
+56,DOXY,Doxycycline,100mg,100,Capsules,1,0,0,56
+57,ERY,Erythromycin,500mg,100,Tablets,1,0,0,57
+58,OFLOX,Ofloxacin,200mg,100,Tablets,1,0,0,58
+59,SPEC,Spectinomycine,2g,100,Injectables,1,0,0,59
+60,TCN,Tetracycline,500mg,100,Capsules,1,0,0,60
+61,ATP,Amitryptiline,25mg,100,Tablets,1,0,0,61
+62,ART/LUM,Arthemeter/Lumefantrine,20/120mg,100,Tablets,1,0,0,62
+63,FOLIC,Folic Acid,5mg,100,Tablets,1,0,0,63
+64,FEROS,Ferrous Sulphate,300mg,100,Tablets,1,0,0,64
+65,FEROC,Ferrous Gluconate,300mg,100,Tablets,1,0,0,65
+66,MVT,Multivitamin,"",100,Tablets,1,0,0,66
+67,MVT,Multivitamin,"",100,Syrup,3,0,0,67
+68,IBU,Ibuprofen,200mg,100,Tablets,1,0,0,68
+69,LOP,Loperamide,2mg,100,Tablets,1,0,0,69
+70,PROMET,Promethezine HCL,25mg,100,Tablets,1,0,0,70
+71,TRAM,Tramadol HCL,50mg,100,Capsules,1,0,0,71
+72,ORS,Oral Dehydration Solution,"",100,Oral Solution,3,0,3,72
+73,FLUX,Fluoxetine,20mg,100,Capsules,1,0,0,73
+74,LOR,Loratidine,10mg,100,Tablets,1,0,0,74
+75,METO,Metoclopramide,10mg,100,Tablets,1,0,0,75
+76,BSA,Benzoic Acid/Salicylic Acid Ointment,6/3%,100,Creams/Ointment,1,0,0,76
+77,HYC,Hydrocortine,1%,100,Creams/Ointment,1,0,0,77
+78,CHLO,Chlorpheniramine,4mg,100,Tablets,1,0,0,78
+79,SUPY,Sulphadoxin/Pyrimethamine,500/25mg,100,Tablets,1,0,0,79
+80,IBU,Ibuprofen,400mg,100,Tablets,1,0,1,80
+81,NYS,Nystatin,50000iu,100,Tablets,0,0,1,81
+82,ZIT,Zithromax,500mg,100,Tablets,1,0,0,82
+83,MET,Metronidazole,400mg,100,Tablets,1,0,0,83
+84,R,Rifampicin,150mg,100,Tablets,1,0,0,84
+85,R,Rifampicin,60mg,28,Tablets,1,0,0,85
+86,H,Isoniazid,75mg,28,Tablets,1,0,0,86
+87,H,Isoniazid,100mg,28,Tablets,1,0,0,87
+88,E,Ethambuthol,275mg,28,Tablets,1,0,0,88
+89,E,Ethambuthol,400mg,28,Tablets,1,0,0,89
+90,Z,Pyrazinamide,400mg,28,Tablets,1,0,0,90
+91,Z,Pyrazinamide,150mg,28,Tablets,1,0,0,91
+92,S,Streptomycin,1g,28,Injectables,1,0,0,92
+93,EH,Ethambuthol/Isoniazid,400/150mg,28,Tablets,1,0,0,93
+94,RH,Rifampicin/Isoniazid,150/75mg,28,Tablets,1,0,0,94
+95,RH,Rifampicin/Isoniazid,60/30mg,28,Tablets,1,0,0,95
+96,RHZ,Rifampicin/Isoniazid/Pyrazinamide,60/30/150mg,28,Tablets,1,0,0,96
+97,RHZE,Rifampicin/Isoniazid/Pyrazinamide/Ethambuthol,150/75/400/275mg,28,Tablets,1,0,0,97
+98,AZT/3TC/NVP,Zidovudine/Lamivudine/Nevirapine,300/150/200mg,60,Tablets,1,0,1,98
+99,H,Isoniazid,300mg,24,Tablets,1,0,0,99
+100,DTG,Dolutegravir,50mg,24,Tablets,1,0,0,100
+101,LPV/r,Lopinavir/Ritonavir,40/10mg,24,Pellet,1,0,0,101
+102,ABC,Abacavir,600mg,60,Tablets,1,0,0,102
