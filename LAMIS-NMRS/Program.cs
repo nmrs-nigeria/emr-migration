@@ -73,6 +73,12 @@ namespace LAMIS_NMRS
                 migOption.LamisDatabaseName = Utilities.GetAppConfigItem("lamis_Database_Name");
                 migOption.LamisUsername = Utilities.GetAppConfigItem("lamis_Server_Username");
                 migOption.LamisPassword = Utilities.GetAppConfigItem("lamis_Server_Password");
+
+                if(string.IsNullOrEmpty(migOption.LamisDatabaseName) || string.IsNullOrEmpty(migOption.LamisUsername) || string.IsNullOrEmpty(migOption.LamisPassword))
+                {
+                    Console.WriteLine(Environment.NewLine + "Some required variables were not provided. Please review the AppSettings.json file and ensure all variables are provided.");
+                    return;
+                }
                 #endregion
             }
             else
