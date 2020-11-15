@@ -50,6 +50,78 @@ namespace LAMIS_NMRS.Models
         public List<Identifiers> identifiers { get; set; }
     }
 
+    public class LamisPatient
+    {
+        public long patient_id { get; set; }
+        public string facility_id { get; set; }
+        public string hospital_num { get; set; }
+        public string unique_id { get; set; }
+        public string surname { get; set; }
+        public string other_names { get; set; }
+        public string gender { get; set; }
+        public string date_birth { get; set; }
+        public string age { get; set; }        
+        public string age_unit  { get; set; }
+        public string marital_status { get; set; }
+        public string education { get; set; }
+        public string occupation { get; set; }
+        public string address { get; set; }
+        public string phone { get; set; }
+        public string state { get; set; }
+        public string lga { get; set; }
+        public string next_kin { get; set; }
+        public string address_kin { get; set; }
+        public string phone_kin { get; set; }
+        public string relation_kin { get; set; }
+        public string entry_point { get; set; }
+        public string target_group { get; set; }
+        public string date_confirmed_hiv { get; set; }
+        public string date_enrolled_pmtct { get; set; }
+        public string source_referral { get; set; }
+        public string time_hiv_diagnosis { get; set; }
+        public string tb_status { get; set; }
+        public string pregnant { get; set; }
+        public string breastfeeding { get; set; }
+        public string date_registration { get; set; }
+        public string status_registration { get; set; }
+        public string enrollment_setting { get; set; }
+        public string casemanager_id  { get; set; }
+        public string communitypharm_id  { get; set; }
+        public string date_started  { get; set; }
+        public string current_status { get; set; }
+        public string date_current_status  { get; set; }
+        public string regimentype  { get; set; }
+        public string regimen  { get; set; }
+        public string last_clinic_stage { get; set; }
+        public string last_viral_load  { get; set; }
+        public string last_cd4  { get; set; }
+        public string last_cd4p  { get; set; }
+        public string date_last_cd4 { get; set; }
+        public string date_last_viral_load   { get; set; }
+        public string viral_load_due_date { get; set; }
+        public string viral_load_type { get; set; }
+        public string date_last_refill { get; set; }
+        public string date_next_refill { get; set; }
+        public string last_refill_duration  { get; set; }
+        public string last_refill_setting { get; set; }
+        public string date_last_clinic  { get; set; }
+        public string date_next_clinic { get; set; }
+        public string date_tracked { get; set; }
+        public string outcome  { get; set; }
+        public string cause_death  { get; set; }
+        public string agreed_date  { get; set; }
+        public string send_message  { get; set; }
+        public string time_stamp   { get; set; }
+        public string uploaded  { get; set; }
+        public string time_uploaded  { get; set; }
+        public string user_id { get; set; }
+        public string id_uuid  { get; set; }
+        public string partnerinformation_id  { get; set; }
+        public string hts_id   { get; set; }
+        public string uuid { get; set; }
+        public string archived { get; set; }
+    }
+
 
     public class Identifiers
     {

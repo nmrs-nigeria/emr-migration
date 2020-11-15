@@ -29,7 +29,6 @@ namespace LAMIS_NMRS.Models
         public string GROUPINGCONCEPT { get; set; }
     }
 
-
     public class NmrsConcept
     {
         public string ConceptId { get; set; }
@@ -66,7 +65,7 @@ namespace LAMIS_NMRS.Models
     public class LabData
     {
         public string laboratory_id { get; set; }
-        public string patient_id { get; set; }
+        public long patient_id { get; set; }
         public string facility_id { get; set; }
         public string date_reported { get; set; }
         public string date_collected { get; set; }
@@ -83,4 +82,115 @@ namespace LAMIS_NMRS.Models
         public string uuid { get; set; }
         public string archived { get; set; }
     }
+
+    public class ClinicData
+    {
+        public string clinic_id { get; set; }
+        public long patient_id { get; set; }
+        public string facility_id { get; set; }
+        public string date_visit { get; set; }
+        public string clinic_stage { get; set; }
+        public string func_status { get; set; }
+        public string tb_status { get; set; }
+        public string viral_load { get; set; }
+        public string cd4 { get; set; }
+        public string cd4p { get; set; }
+        public string regimentype { get; set; }
+        public string regimen { get; set; }
+        public string body_weight { get; set; }
+        public string height { get; set; }
+        public string waist { get; set; }
+        public string bp { get; set; }
+        public string pregnant { get; set; }
+        public string lmp { get; set; }
+        public string breastfeeding { get; set; }
+        public string oi_screened { get; set; }
+        public string sti_ids { get; set; }
+        public string sti_treated { get; set; }
+        public string oi_ids { get; set; }
+        public string adr_screened { get; set; }
+        public string adr_ids { get; set; }
+        public string adherence_level { get; set; }
+        public string adhere_ids { get; set; }
+        public string commence { get; set; }
+        public string next_appointment { get; set; }
+        public string notes { get; set; }
+        public string time_stamp { get; set; }
+        public string uploaded { get; set; }
+        public string time_uploaded { get; set; }
+        public string user_id { get; set; }
+        public string gestational_age { get; set; }
+        public string maternal_status_art { get; set; }
+        public string id_uuid { get; set; }
+        public string uuid { get; set; }
+        public string deviceconfig_id { get; set; }
+        public string archived { get; set; }
+    }
+
+    public class PharmacyData
+    {
+        public string pharmacy_id { get; set; }
+        public long patient_id { get; set; }
+        public string facility_id { get; set; }
+        public string date_visit { get; set; }
+        public string duration { get; set; }
+        public string morning { get; set; }
+        public string afternoon { get; set; }
+        public string evening { get; set; }
+        public string adr_screened { get; set; }
+        public string adr_ids { get; set; }
+        public string prescrip_error { get; set; }
+        public string adherence { get; set; }
+        public string next_appointment { get; set; }
+        public string regimentype { get; set; }
+        public string regimen { get; set; }
+        public string regimentype_id { get; set; }
+        public string regimen_id { get; set; }
+        public string regimendrug_id { get; set; }
+        public string time_stamp { get; set; }
+        public string uploaded { get; set; }
+        public string time_uploaded { get; set; }
+        public string user_id { get; set; }
+        public string id_uuid { get; set; }
+        public string dmoc_type { get; set; }
+        public string uuid { get; set; }
+        public string archived { get; set; }   
+    }
+
+    public class MigrationOption
+    {
+        public int Option { get; set; }
+        public int Facility { get; set; }
+        public string LamisDatabaseName { get; set; }
+        public string LamisUsername { get; set; }
+        public string LamisPassword { get; set; }
+        public string NmrsDatabaseName { get; set; }
+        public string PatientsFilePath { get; set; }
+        public string ClinicalsFilePath { get; set; }
+        public string LabDataFilePath { get; set; }
+        public string PharmacyDataFilePath { get; set; }
+        public string FaciltyName { get; set; }
+        public string FacilityDatim_code { get; set; }
+        public string NmrsServerUsername { get; set; }
+        public string NmrsServerPassword { get; set; }
+        public string NmrsServerPort { get; set; }
+    }
+
+    public class MigrationReport
+    {
+        public int patients { get; set; }
+        public int encounters { get; set; }
+        public int obs { get; set; }
+        public int visit { get; set; }
+    }
+    
+    public class RefPatient
+    {
+
+    }
+
+
+    //pharmacy_id	patient_id	date_visit	regimen	regimentype	duration	morning	afternoon	evening	adherence	next_appointment	time_stamp
+
+    //pharmacy_id	patient_id	facility_id	date_visit	duration	morning	afternoon	evening	adr_screened	adr_ids	prescrip_error	adherence	next_appointment	regimentype_id	regimen_id	regimendrug_id	time_stamp	uploaded	time_uploaded	user_id	id_uuid	dmoc_type	uuid	archived
 }

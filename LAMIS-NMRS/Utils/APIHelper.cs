@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Common;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -46,24 +47,37 @@ namespace LAMIS_NMRS.Utils
             return await response.Content.ReadAsStringAsync();
         }
 
-        public async Task<T> PostMessageWithData<T, U>(string urlPart, U data)
+        public async Task<ApiResponse> SendData<T, U>(string urlPart, U data)
         {
-            string url = baseDataURL + urlPart;
-            var response = await ApiClient.PostAsJsonAsync(url, data);
+            try
+            {
+                string url = baseDataURL + urlPart;
+                var response = await ApiClient.PostAsJsonAsync(url, data);
 
-            if (response.StatusCode == System.Net.HttpStatusCode.Accepted ||
-                response.StatusCode == System.Net.HttpStatusCode.Created ||
-                response.StatusCode == System.Net.HttpStatusCode.OK)
-            {
-                return await response.Content.ReadAsAsync<T>();
+                if (response.StatusCode == System.Net.HttpStatusCode.Accepted || response.StatusCode == System.Net.HttpStatusCode.Created || response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    return await response.Content.ReadAsAsync<ApiResponse>();
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Error: {0}", Environment.NewLine);
+                    Console.ForegroundColor = ConsoleColor.White;                    
+                    Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(data));
+                    Console.WriteLine("An error was encountered with the following message: {0}", Environment.NewLine);
+                    Console.WriteLine(await response.Content.ReadAsStringAsync());                    
+                    return new ApiResponse { uuid = string.Empty };
+                }
             }
-            else
+            catch(Exception ex)
             {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Error: {0}", Environment.NewLine);
+                Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                Console.WriteLine("An error was encountered with the following message:" + Environment.NewLine);
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(data));
-                throw new ApplicationException(await response.Content.ReadAsStringAsync());
+                Console.WriteLine(message + Environment.NewLine);
+                return new ApiResponse { uuid = string.Empty };
             }
         }
 
@@ -81,13 +95,13 @@ namespace LAMIS_NMRS.Utils
             }
         }
 
-        public async Task<T> GetMessage<T>(string urlPart)
+        public async Task<dynamic> GetData(string urlPart)
         {
             try
             {
                 string url = baseDataURL + urlPart;
                 var response = await ApiClient.GetAsync(url);
-                return await response.Content.ReadAsAsync<T>();
+                return await response.Content.ReadAsAsync<dynamic>();
             }
             catch (Exception ex)
             {

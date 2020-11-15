@@ -1,14 +1,7 @@
 ﻿using Common;
 using LAMIS_NMRS.Models;
 using LAMIS_NMRS.Utils;
-using OfficeOpenXml;
 using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Printing;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace LAMIS_NMRS
 {
@@ -16,149 +9,123 @@ namespace LAMIS_NMRS
     {             
         static void Main(string[] args)
         {
-            var apiUrl = Utilities.GetAppConfigItem("rest_api");
-            APIHelper apiHelper = new APIHelper(apiUrl);
+            Console.WriteLine(Environment.NewLine);
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("Starting Migration. Please don't close this window...." + Environment.NewLine);            
-            MigrateData(apiHelper, 0, 10);
-        }
-        static DateTime startDate = DateTime.Now;
-        static int patientsMigrated = 0;
-        static int encounterMigrated = 0;
-        static int obsMigrated = 0;
-        static int visitMigrated = 0;
+            Console.WriteLine("Before we begin::" + Environment.NewLine);
+            Console.WriteLine("Please ensure to first provide the correct values for the following items:");
+            Console.WriteLine("lamis_Database_Name");
+            Console.WriteLine("lamis_Server_Username");
+            Console.WriteLine("lamis_Server_Password");
+            Console.WriteLine("facilty_name");
+            Console.WriteLine("facility_datim_code");
+            Console.WriteLine("nmrs_Server_Username");
+            Console.WriteLine("nmrs_Server_Password");
+            Console.WriteLine("nmrs_Server_Port" + Environment.NewLine);
+            Console.WriteLine("This can be done in the AppSettings.json file in this application's root folder.");
 
-        public static void MigrateData(APIHelper apiHelper, int page, int pageSize)
-        {
-            try
-            {               
-                page += 1;
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine("Retrieving patients...{0}", Environment.NewLine);
-                var patients = new DataBuilder().BuildPatientInfo(pageSize, page);
-                if (patients.Any())
-                {
-                    patients.ForEach(p =>
-                    {
-                        //migrate person, identifiers, address   
-                        Console.ForegroundColor = ConsoleColor.White;
-                        Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
-                        var personUuid = apiHelper.PostMessageWithData<CommonResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
-                        if (!string.IsNullOrEmpty(personUuid))
-                        {
-                            var patientInfo = new PatientInfo
-                            {
-                                person = personUuid,
-                                identifiers = p.identifiers
-                            };                           
-                            var patientUuid = apiHelper.PostMessageWithData<CommonResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
+            var migOption = new MigrationOption();
 
-                            foreach (var e in p.Encounters)
-                            {
-                                e.patient = patientUuid;
-                            }
-                            patientsMigrated += 1;
-                            var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
+            // Prompt user to select to either migrate data from CSV or Database            
+            // and read user's option
 
-                            //Migrate Encounters
-                            Console.WriteLine("Migrating encounters...{0}", Environment.NewLine);
-                            foreach (var g in encounterGroups)
-                            {
-                                var encounterUuids = new List<string>();
-                                var encounters = g.ToList();
+            Console.ForegroundColor = ConsoleColor.White;
 
-                                var visit = new Visit
-                                {
-                                    startDatetime = g.Key,
-                                    stopDatetime = g.Key,
-                                    location = encounters[0].location,
-                                    patient = patientUuid
-                                };
+        ChooseMigrationOption: var migrationOption = ChooseMigrationOption();
 
-                                var visitUuid = apiHelper.PostMessageWithData<CommonResponse, Visit>(URLConstants.visit, visit).Result.uuid;
-                                if (string.IsNullOrEmpty(visitUuid))
-                                {
-                                    var error = "Clinical Visit failed to migrate. Visit Date: " + g.Key;
-                                    Console.ForegroundColor = ConsoleColor.White;
-                                    Console.WriteLine("Visit migration for patient with ID: {0} {1} {2} at " + visit.startDatetime + " failed with the following message",p.identifiers[0],Environment.NewLine,Environment.NewLine);
-
-                                    Console.ForegroundColor = ConsoleColor.Red;
-                                    Console.WriteLine(error);
-                                    continue;
-                                }
-                                visitMigrated += 1;
-
-                                foreach (var enc in encounters)
-                                {
-                                    enc.visit = visitUuid;
- 
-                                    enc.obs.ForEach(ol =>
-                                    {
-                                        ol.location = enc.location;
-                                        ol.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
-                                        ol.person = personUuid;                                                                                      
-                                           
-                                        if (ol.groupMembers.Any())
-                                        {
-                                            var groupMembers = new List<string>();
-
-                                            ol.groupMembers.ForEach(og =>
-                                            {
-                                                og.location = enc.location;
-                                                og.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
-                                                og.person = personUuid;
-                                            });
-                                        }
-                                    });                                        
-
-                                    var encounterUuid = apiHelper.PostMessageWithData<CommonResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
-                                    if (!string.IsNullOrEmpty(encounterUuid))
-                                    {
-                                        encounterMigrated += 1;
-                                        obsMigrated += enc.obs.Count();
-                                        enc.obs.ForEach(l => 
-                                        { 
-                                        
-                                            if(l.groupMembers.Any())
-                                                obsMigrated += l.groupMembers.Count();
-                                        });
-                                    }
-                                    else
-                                    {
-                                        Console.ForegroundColor = ConsoleColor.Red;
-                                        Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
-                                        Console.ForegroundColor = ConsoleColor.White;
-                                        Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
-                                    }
-                                }
-                            }
-                            var summarry = "Patients: " + patientsMigrated.ToString() +
-                            "; Encounters: " + encounterMigrated.ToString() +
-                            "; Visits: " + visitMigrated.ToString()+
-                            "; Obs: " + obsMigrated.ToString();
-                            
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine("Total Data Migrated:");
-                            Console.WriteLine(summarry);
-                            var d = (DateTime.Now - startDate).ToString(@"hh\:mm\:ss");
-                            Console.WriteLine("Total Duration: {0}{1}{2}",d, Environment.NewLine, Environment.NewLine);                           
-                        }
-
-                    });
-
-                    MigrateData(apiHelper, page, pageSize);
-                }               
-                            
-            }
-            catch(Exception ex)
+            if(string.IsNullOrEmpty(migrationOption))
             {
-                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(Environment.NewLine + Environment.NewLine);
-                Console.WriteLine("An error was encountered with the following message:" + Environment.NewLine);
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(message + Environment.NewLine);                
+                goto ChooseMigrationOption;
             }
-        }       
+
+            var isValidOption = int.TryParse(migrationOption, out int option);
+            if (!isValidOption || option < 1 || option > 2)
+            {
+                goto ChooseMigrationOption;
+            }
+
+            migOption.Option = option;
+
+        getFacilityId: var facility_Id = EnterFacilityId();
+            if (string.IsNullOrEmpty(facility_Id))
+            {
+                Console.WriteLine(Environment.NewLine + "Please enter a valid integer value:");
+                goto getFacilityId;
+            }
+
+            var isValidEntry = int.TryParse(facility_Id, out int facilityId);
+            if (!isValidEntry || facilityId < 1)
+            {
+                Console.WriteLine(Environment.NewLine + "Please enter LAMIS Facility ID:");
+                goto getFacilityId;
+            }
+
+            migOption.Facility = facilityId;
+                       
+            migOption.FaciltyName = Utilities.GetAppConfigItem("facilty_name");
+            migOption.FacilityDatim_code = Utilities.GetAppConfigItem("facility_datim_code");
+            migOption.NmrsServerUsername = Utilities.GetAppConfigItem("nmrs_Server_Username");
+            migOption.NmrsServerPassword = Utilities.GetAppConfigItem("nmrs_Server_Password");
+            migOption.NmrsServerPort = Utilities.GetAppConfigItem("nmrs_Server_Port");
+
+            if (option == 1) //migrate from Database
+            {
+                #region LAMIS Server Credentials
+                migOption.LamisDatabaseName = Utilities.GetAppConfigItem("lamis_Database_Name");
+                migOption.LamisUsername = Utilities.GetAppConfigItem("lamis_Server_Username");
+                migOption.LamisPassword = Utilities.GetAppConfigItem("lamis_Server_Password");
+                #endregion
+            }
+            else
+            {
+                if (option == 2) //Migrate from files
+                {
+                    //prompt user to enter PatientDemography File Path
+                    Console.WriteLine(Environment.NewLine + "Please paste PatientDemography Data File Path:");
+                    migOption.PatientsFilePath = Console.ReadLine();
+
+                    //prompt user to enter Clinicals File Path
+                    Console.WriteLine(Environment.NewLine + "Please paste Clinicals Data File Path:");
+                    migOption.ClinicalsFilePath = Console.ReadLine();
+
+                    //prompt user to enter Lab data File Path
+                    Console.WriteLine(Environment.NewLine + "Please paste Lab data File Path:");
+                    migOption.LabDataFilePath = Console.ReadLine();
+
+                    //prompt user to enter Pharmacy Data File Path
+                    Console.WriteLine(Environment.NewLine + "Please paste Pharmacy Data File Path:");
+                    migOption.PharmacyDataFilePath = Console.ReadLine();
+                }
+            }            
+
+            if(migOption.Option == 1)
+            {
+                new DataBuilder_Read_From_DB(migOption);
+            }
+            else
+            {
+                new DataBuilder(migOption);
+            }
+        }     
+        
+        static string ChooseMigrationOption()
+        {
+            // Prompt user to select to either migrate data from CSV or Database
+            Console.WriteLine(string.Empty);
+            Console.WriteLine("::: Migration Options :::");
+            Console.ForegroundColor = ConsoleColor.Green;            
+            Console.WriteLine("1. Migrate from a LAMIS Database");
+            Console.WriteLine("2. Migrate Data from CSV/Excel files");            
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Which do you prefer? Enter 1 or 2");
+            return Console.ReadLine();
+        }
+
+        static string EnterFacilityId()
+        {
+            // Force user to select either option 1 or 2
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(Environment.NewLine + "Please enter LAMIS Facility ID (This is the facility primary key from the LAMIS Database):");
+            return Console.ReadLine();
+        }
     }
 }

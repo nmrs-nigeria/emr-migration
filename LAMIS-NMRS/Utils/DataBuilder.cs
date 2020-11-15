@@ -28,254 +28,293 @@ namespace Common
         List<Drug> drugs;
         List<Lab> labs;
         List<LabData> labData;
+        List<ClinicData> clinicData;
+        List<LamisPatient> LamisPatients;
+        List<PharmacyData> pharmacyDataList;
+        MigrationOption _migOption;
         string rootDir;
+        MigrationReport migrationReport;
+        int itemsPerPage = 10, pageNumber = 0;
 
-        public DataBuilder()
-        {           
+        public DataBuilder(MigrationOption migOption)
+        {
+            _migOption = migOption;
+            migrationReport = new MigrationReport();
             rootDir = Directory.GetCurrentDirectory();
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Starting Migration. Please don't close this window...." + Environment.NewLine);
+            BuildPatientInfo();
         }
-        public List<Patient> BuildPatientInfo(int itemsPerPage, int pageNumber)
-        {
-            var patients = new List<Patient>();
-       
+        public void BuildPatientInfo()
+        {                  
             try
             {
-                regimens = GetRegimen();
-                nmsConcepts = new Utilities().GetConcepts();
-                drugs = GetDrugs();
-                labs = GetLabs();
-                labData = GetLabData();
+                var startDate = DateTime.Now;
+                //First load the data and Template List if not done yet
+                if (regimens == null)
+                    regimens = GetRegimen();
+                if(nmsConcepts == null)
+                    nmsConcepts = new Utilities().GetConcepts();
+                if(drugs == null)
+                    drugs = GetDrugs();
+                if(labs == null)
+                    labs = GetLabs();                
+                if (LamisPatients == null)
+                    LamisPatients = GetPatientData();
 
                 if (!regimens.Any() || !nmsConcepts.Any() || !drugs.Any() || !labs.Any())
                 {
-                    Console.WriteLine("ERROR: Regimen/Drugs or NMRS Concepts data List could not be retrieved. Command Aborted");
-                    return new List<Patient>();
+                    Console.WriteLine("ERROR: Regimen/Drugs or NMRS Concepts data List could not be retrieved. Migration Aborted");
+                    return;
                 }
 
-                using (NpgsqlConnection connection = new NpgsqlConnection(Utilities.GetConnectionString("pgconn")))
+                if (!LamisPatients.Any())
                 {
-                    connection.Open();
-                    var q = "SELECT * FROM patient order by patient_id offset  " + ((pageNumber - 1) * itemsPerPage) + " rows fetch next " + itemsPerPage + " rows only;";
-                                       
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(q, connection))
+                    Console.WriteLine("ERROR: Patients' data list could not be retrieved. Migration Aborted");
+                    return;
+                }
+
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Retrieving patients...{0}", Environment.NewLine);
+
+            retrievePatients:  var patients = new List<Patient>();
+
+                pageNumber += 1;
+
+                var pagedData = LamisPatients.OrderBy(p => p.patient_id).Skip((pageNumber - 1) * itemsPerPage).Take(itemsPerPage).ToList();
+                pagedData.ForEach(pp =>
+                {
+                    var patient = new Patient 
+                    { 
+                        identifiers = new List<Identifiers>(), 
+                        person = new PatientDemography(),
+                        Encounters = new List<Encounter>()
+                    };
+
+                    var pd = new PatientDemography();
+                    pd.addresses = new List<Personaddress>();
+                    pd.names = new List<PersonName> ();
+
+                    DateTime dateOfBirth;
+                    var enrolmentIdStr = pp.hospital_num;
+                    var patient_id = pp.patient_id.ToString();
+
+                    if (long.TryParse(patient_id, out long patientId))
                     {
-                        using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                        if (enrolmentIdStr != null)
                         {
-                            if (reader.HasRows)
-                            {                                
-                                while (reader.Read())
+                            var enrolmentId = enrolmentIdStr.ToString();
+
+                            if (!string.IsNullOrEmpty(enrolmentId))
+                            {
+                                var identifier = new Identifiers
                                 {
-                                    var patient = new Patient 
-                                    { 
-                                        identifiers = new List<Identifiers>(), 
-                                        person = new PatientDemography(),
-                                        Encounters = new List<Encounter>()
-                                    };
+                                    identifier = enrolmentId,
+                                    identifierType = "c82916e4-168c-495f-8ed0-b1b286c30a05", //Pepfar uuid
+                                    location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //in-patient ward uuid
+                                    preferred = true
+                                };
+                                patient.identifiers.Add(identifier);
 
-                                    var pd = new PatientDemography();
-
-                                    DateTime dateOfBirth;
-                                    var enrolmentIdStr = reader["hospital_num"];
-                                    var patient_id = reader["patient_id"].ToString();
-
-                                    if (!long.TryParse(patient_id, out long patientId))
-                                        continue;
-
-                                    if (enrolmentIdStr != null)
+                                var dobStr = pp.date_birth;
+                                if (dobStr != null)
+                                {
+                                    var dob = dobStr.ToString().Trim();
+                                    if (!string.IsNullOrEmpty(dob))
                                     {
-                                        var enrolmentId = enrolmentIdStr.ToString();
-
-                                        if (!string.IsNullOrEmpty(enrolmentId))
+                                        if (DateTime.TryParse(dob.Trim(), out dateOfBirth))
                                         {
-                                            var identifier = new Identifiers
-                                            {
-                                                identifier = enrolmentId,
-                                                identifierType = "c82916e4-168c-495f-8ed0-b1b286c30a05", //Pepfar uuid
-                                                location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //in-patient ward uuid
-                                                preferred = true
-                                            };
-                                            patient.identifiers.Add(identifier);
-
-                                            var dobStr = reader["date_birth"];
-                                            if (dobStr != null)
-                                            {
-                                                var dob = dobStr.ToString().Trim();
-                                                if (!string.IsNullOrEmpty(dob))
-                                                {
-                                                    if (DateTime.TryParse(dob.Trim(), out dateOfBirth))
-                                                    {
-                                                        pd.birthdate = dateOfBirth.ToString("yyyy-MM-dd");
-                                                    }
-                                                }
-                                            }
-
-                                            //Attributes
-                                            var phoneStr = reader["phone"];
-                                            if (phoneStr != null)
-                                            {
-                                                if (!string.IsNullOrEmpty(phoneStr.ToString()))
-                                                {
-                                                    var attribute = new PatientAttributes
-                                                    {
-                                                        attributeType = "14d4f066-15f5-102d-96e4-000c29c2a5d7", //Phone number uuid
-                                                        value = phoneStr.ToString(),
-                                                    };
-                                                    //pd.attributes = new List<PatientAttributes> { attribute };
-                                                }
-                                            }
-
-                                            var givenName = reader["other_names"];
-                                            var surname = reader["surname"];
-                                            if(givenName != null && surname != null)
-                                            {
-                                                var otherNames = givenName.ToString();
-                                                var familyName = surname.ToString();
-                                                if (!string.IsNullOrEmpty(familyName) && !string.IsNullOrEmpty(otherNames))
-                                                {
-                                                    var name = new PersonName
-                                                    {
-                                                        preferred = true,
-                                                        givenName = Utilities.UnscrambleCharacters(otherNames),
-                                                        familyName = Utilities.UnscrambleCharacters(familyName)
-                                                    };
-
-                                                    pd.names = new List<PersonName> { name };
-                                                }                                                
-                                            }
-                                            var ageStr = reader["age"];
-                                            if (ageStr != null)
-                                            {
-                                                var ageX = ageStr.ToString();
-                                                if (!string.IsNullOrEmpty(ageX))
-                                                {
-                                                    if(int.TryParse(ageX, out int age))
-                                                    {
-                                                        pd.age = age;
-                                                    }                                                   
-                                                }
-                                            }
-
-                                            var genderStr = reader["gender"];
-                                            if (genderStr != null)
-                                            {
-                                                var gender = genderStr.ToString().Trim().Replace(" ", string.Empty);
-                                                if (!string.IsNullOrEmpty(gender))
-                                                {
-                                                    pd.gender = gender;
-                                                }
-                                            }
-
-                                            var adr = reader["address"];
-                                            if(adr != null)
-                                            {
-                                                var addres1 = adr.ToString().Trim();
-                                                if (!string.IsNullOrEmpty(addres1))
-                                                {                                                
-                                                    var address = new Personaddress
-                                                    {
-                                                        preferred = true,
-                                                        address1 = Utilities.UnscrambleCharacters(addres1),
-                                                        country = "Nigeria"
-                                                    };
-
-                                                    var lgaR = reader["lga"];
-                                                    if(lgaR != null)
-                                                    {
-                                                        var lga = lgaR.ToString().Trim();
-                                                        if (!string.IsNullOrEmpty(lga))
-                                                        {
-                                                            address.cityVillage = lga;
-                                                        }                                                            
-                                                    }
-
-                                                    var stateR = reader["state"];
-                                                    if (stateR != null)
-                                                    {
-                                                        var state = stateR.ToString().Trim();
-                                                        if (!string.IsNullOrEmpty(state))
-                                                        {
-                                                            address.stateProvince = state;
-                                                        }
-                                                    }
-
-                                                    pd.addresses = new List<Personaddress> { address };
-                                                }
-                                            }
-                                            
-                                            patient.person = pd;
-
-                                            var artCommencement = BuiildArtCommencement(reader);
-                                            if(!string.IsNullOrEmpty(artCommencement.encounterType))
-                                            {
-                                                patient.Encounters.Add(artCommencement);
-                                            }
-                                            var careCardAndVitals = BuildCareCardAndVitals(patientId, dobStr.ToString().Trim());
-                                            if(careCardAndVitals.Any())
-                                            {
-                                                careCardAndVitals.ForEach(e =>
-                                                {
-                                                    if (!string.IsNullOrEmpty(e.encounterType))
-                                                    {
-                                                        patient.Encounters.Add(e);
-                                                    }
-                                                });
-                                            }                                                                                    
-
-                                            var careTermination = BuildCareTermination(reader);
-                                            if (!string.IsNullOrEmpty(careTermination.encounterType))
-                                            {
-                                                patient.Encounters.Add(careTermination);
-                                            }
-                                            var hivEnrolment = BuildHIVEnrolment(reader, pd.gender);
-                                            if (!string.IsNullOrEmpty(hivEnrolment.encounterType))
-                                            {
-                                                patient.Encounters.Add(hivEnrolment);
-                                            }
-
-                                            var pharmacies = BuildPharmacy(patientId, dobStr.ToString().Trim());
-                                            if (pharmacies.Any())
-                                            {
-                                                pharmacies.ForEach(p =>
-                                                {
-                                                    if (!string.IsNullOrEmpty(p.encounterType))
-                                                    {
-                                                        patient.Encounters.Add(p);
-                                                    }
-                                                });
-                                            }
-
-                                            var labInfo = BuildLab(patientId);
-                                            if (labInfo.Any())
-                                            {
-                                                labInfo.ForEach(l =>
-                                                {
-                                                    if (!string.IsNullOrEmpty(l.encounterType))
-                                                    {
-                                                        patient.Encounters.Add(l);
-                                                    }
-                                                });
-                                            }
-
-                                            patients.Add(patient);
+                                            pd.birthdate = dateOfBirth.ToString("yyyy-MM-dd");
                                         }
                                     }
-                                                                        
                                 }
+
+                                //Attributes
+                                var phoneStr = pp.phone;
+                                if (phoneStr != null)
+                                {
+                                    if (!string.IsNullOrEmpty(phoneStr.ToString()))
+                                    {
+                                        var attribute = new PatientAttributes
+                                        {
+                                            attributeType = "14d4f066-15f5-102d-96e4-000c29c2a5d7", //Phone number uuid
+                                            value = phoneStr.ToString(),
+                                        };
+                                        //pd.attributes = new List<PatientAttributes> { attribute };
+                                    }
+                                }
+
+                                var givenName = pp.other_names;
+                                var surname = pp.surname;
+                                if (givenName != null && surname != null)
+                                {
+                                    var otherNames = givenName.ToString();
+                                    var familyName = surname.ToString();
+                                    if (!string.IsNullOrEmpty(familyName) && !string.IsNullOrEmpty(otherNames))
+                                    {
+                                        var name = new PersonName
+                                        {
+                                            preferred = true,
+                                            givenName = Utilities.UnscrambleCharacters(otherNames),
+                                            familyName = Utilities.UnscrambleCharacters(familyName)
+                                        };
+
+                                        pd.names.Add(name);
+                                    }
+                                }
+                                var ageStr = pp.age;
+                                if (ageStr != null)
+                                {
+                                    var ageX = ageStr.ToString();
+                                    if (!string.IsNullOrEmpty(ageX))
+                                    {
+                                        if (int.TryParse(ageX, out int age))
+                                        {
+                                            pd.age = age;
+                                        }
+                                    }
+                                }
+
+                                var genderStr = pp.gender;
+                                if (genderStr != null)
+                                {
+                                    var gender = genderStr.ToString().Trim().Replace(" ", string.Empty);
+                                    if (!string.IsNullOrEmpty(gender))
+                                    {
+                                        pd.gender = gender;
+                                    }
+                                }
+
+                                var adr = pp.address;
+                                if (adr != null)
+                                {
+                                    var addres1 = adr.ToString().Trim();
+                                    if (!string.IsNullOrEmpty(addres1))
+                                    {
+                                        var address = new Personaddress
+                                        {
+                                            preferred = true,
+                                            address1 = Utilities.UnscrambleCharacters(addres1),
+                                            country = "Nigeria"
+                                        };
+
+                                        var lgaR = pp.lga;
+                                        if (lgaR != null)
+                                        {
+                                            var lga = lgaR.ToString().Trim();
+                                            if (!string.IsNullOrEmpty(lga))
+                                            {
+                                                address.cityVillage = lga;
+                                            }
+                                        }
+
+                                        var stateR = pp.state;
+                                        if (stateR != null)
+                                        {
+                                            var state = stateR.ToString().Trim();
+                                            if (!string.IsNullOrEmpty(state))
+                                            {
+                                                address.stateProvince = state;
+                                            }
+                                        }
+
+                                        pd.addresses.Add(address);
+                                    }
+                                }
+
+                                patient.person = pd;
+
+                                var artCommencement = BuiildArtCommencement(pp);
+                                if (!string.IsNullOrEmpty(artCommencement.encounterType))
+                                {
+                                    patient.Encounters.Add(artCommencement);
+                                }
+                                var careCardAndVitals = BuildCareCardAndVitals(patientId, dobStr.ToString().Trim());
+                                if (careCardAndVitals.Any())
+                                {
+                                    careCardAndVitals.ForEach(e =>
+                                    {
+                                        if (!string.IsNullOrEmpty(e.encounterType))
+                                        {
+                                            patient.Encounters.Add(e);
+                                        }
+                                    });
+                                }
+
+                                var careTermination = BuildCareTermination(pp);
+                                if (!string.IsNullOrEmpty(careTermination.encounterType))
+                                {
+                                    patient.Encounters.Add(careTermination);
+                                }
+                                var hivEnrolment = BuildHIVEnrolment(pp, pd.gender);
+                                if (!string.IsNullOrEmpty(hivEnrolment.encounterType))
+                                {
+                                    patient.Encounters.Add(hivEnrolment);
+                                }
+
+                                var pharmacies = BuildPharmacy(patientId, dobStr.ToString().Trim());
+                                if (pharmacies.Any())
+                                {
+                                    pharmacies.ForEach(p =>
+                                    {
+                                        if (!string.IsNullOrEmpty(p.encounterType))
+                                        {
+                                            patient.Encounters.Add(p);
+                                        }
+                                    });
+                                }
+
+                                var labInfo = BuildLab(patientId);
+                                if (labInfo.Any())
+                                {
+                                    labInfo.ForEach(l =>
+                                    {
+                                        if (!string.IsNullOrEmpty(l.encounterType))
+                                        {
+                                            patient.Encounters.Add(l);
+                                        }
+                                    });
+                                }
+
+                                patients.Add(patient);
                             }
                         }
-                    }
+                    }                       
+                                                                        
+                });
+                if (patients.Any())
+                {
+                    var mgP = PushData(patients);
+
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine("Retrieving more patients...{0}", Environment.NewLine);
+                    goto retrievePatients;
                 }
-                return patients;
+                else
+                {
+                    Console.WriteLine("Data migration completed", Environment.NewLine);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine(":::: MIGRATION SUMMARY ::::");
+                    Console.WriteLine("Total Patients: " + migrationReport.patients.ToString());
+                    Console.WriteLine("Total Visits: " + migrationReport.visit.ToString());
+                    Console.WriteLine("Total Encounters: " + migrationReport.encounters.ToString());
+                    Console.WriteLine("Total Obs: " + migrationReport.obs.ToString());
+                    var d = (DateTime.Now - startDate).ToString(@"hh\:mm\:ss");
+                    Console.WriteLine("Total Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
+                    Console.ForegroundColor = ConsoleColor.DarkCyan;
+                    Console.WriteLine("** Please evaluate the migration messages and ensure all went well. You can as well re-initiate the migration process to make up for discrepancies observed or migrate corrections made on failed data.", Environment.NewLine);
+                }
+                return;
             }
             catch (Exception ex)
             {
                 var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
                 Console.WriteLine(message);
-                return new List<Patient>();
+                return;
             }
         }
-        public Encounter BuiildArtCommencement(NpgsqlDataReader reader)
+        public Encounter BuiildArtCommencement(LamisPatient patient)
         {
             var artcmmtMap = GetARTCommencementMap();
 
@@ -303,8 +342,8 @@ namespace Common
                 fStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.value).UuId;
                 artCommencement.obs.Add(fStatusObs);
 
-                var date_started = reader["date_started"];
-                var date_registration = reader["date_registration"];
+                var date_started = patient.date_started;
+                var date_registration = patient.date_registration;
 
                 DateTime artStartDate;
                 if (date_started != null)
@@ -347,7 +386,7 @@ namespace Common
                     }
                 }
 
-                var date_birthStr = reader["date_birth"];
+                var date_birthStr = patient.date_birth;
                 if (date_birthStr != null)
                 {
                     var date_birth = date_birthStr.ToString().Trim();
@@ -367,8 +406,8 @@ namespace Common
                     }
                 }
 
-                var regimenTypeStr = reader["regimentype"];
-                var regimenStr = reader["regimen"];
+                var regimenTypeStr = patient.regimentype;
+                var regimenStr = patient.regimen;
                 if (regimenTypeStr != null && regimenStr != null)
                 {
                     var regimenType = regimenTypeStr.ToString();
@@ -416,7 +455,7 @@ namespace Common
                 return new Encounter();
             }
         }                
-        public Encounter BuildCareTermination(NpgsqlDataReader reader)
+        public Encounter BuildCareTermination(LamisPatient patient)
         {
             try
             {
@@ -425,7 +464,7 @@ namespace Common
                     obs = new List<Obs>()
                 };
 
-                var current_status = reader["current_status"];
+                var current_status = patient.current_status;
                 if (current_status != null)
                 {
                     var currentStatus = current_status.ToString().Trim();
@@ -436,7 +475,7 @@ namespace Common
                         {
                             var exitMap = GetExitMap();
 
-                            var date_current_status = reader["date_current_status"];
+                            var date_current_status = patient.date_current_status;
                             if (date_current_status != null)
                             {
                                 var dateCurrentStatus = date_current_status.ToString().Trim();
@@ -471,7 +510,7 @@ namespace Common
                                             careTermination.obs.Add(trackingObs);
                                         }
 
-                                        var date_tracked = reader["date_tracked"];
+                                        var date_tracked = patient.date_tracked;
                                         if (date_tracked != null)
                                         {
                                             var dateTracked = date_tracked.ToString().Trim();
@@ -499,7 +538,7 @@ namespace Common
                                             }
                                         }
 
-                                        var agreed_date = reader["agreed_date"];
+                                        var agreed_date = patient.agreed_date;
                                         if (agreed_date != null)
                                         {
                                             var agreedDate = agreed_date.ToString().Trim();
@@ -611,7 +650,7 @@ namespace Common
                                 reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
                                 careTermination.obs.Add(reasonForTerminationObs);
 
-                                var cause_death = reader["cause_death"];
+                                var cause_death = patient.cause_death;
                                 if (cause_death != null)
                                 {
                                     var causeDeath = cause_death.ToString().Trim();
@@ -762,7 +801,7 @@ namespace Common
                 return new Encounter();
             }
         }
-        public Encounter BuildHIVEnrolment(NpgsqlDataReader reader, string gender)
+        public Encounter BuildHIVEnrolment(LamisPatient patient, string gender)
         {
             var artcmmtMap = GetARTCommencementMap();
 
@@ -778,7 +817,7 @@ namespace Common
 
             try
             {                                               
-                var date_started = reader["date_started"];
+                var date_started = patient.date_started;
                 DateTime artStartDate;
                 if (date_started != null)
                 {
@@ -808,7 +847,7 @@ namespace Common
                     }
                 }
 
-                var date_registration = reader["date_registration"];
+                var date_registration = patient.date_registration;
 
                 DateTime encDate = new DateTime(1990, 1, 1);//default date
 
@@ -834,7 +873,7 @@ namespace Common
                     }
                 }
                 
-                var date_confirmed_hiv = reader["date_confirmed_hiv"];
+                var date_confirmed_hiv = patient.date_confirmed_hiv;
                 if (date_confirmed_hiv != null)
                 {
                     var date_confirmed_hivStr = date_confirmed_hiv.ToString().Trim();
@@ -867,7 +906,7 @@ namespace Common
                     hivEnrolment.obs.Add(hivConfirmDateObs);
                 }
 
-                var entryPoint = reader["entry_point"];
+                var entryPoint = patient.entry_point;
                 if (entryPoint != null)
                 {
                     var careEntryPoint = entryPoint.ToString().Trim();
@@ -921,7 +960,7 @@ namespace Common
                     }
                 }
 
-                var marital_status = reader["marital_status"];
+                var marital_status = patient.marital_status;
                 if (marital_status != null)
                 {
                     var maritalStatus = marital_status.ToString().Trim();
@@ -966,7 +1005,7 @@ namespace Common
                     }
                 }
 
-                var education_status = reader["education"];
+                var education_status = patient.education;
                 if (education_status != null)
                 {
                     var education = education_status.ToString().Trim();
@@ -1011,7 +1050,7 @@ namespace Common
                     }
                 }
 
-                var occupation_status = reader["occupation"];
+                var occupation_status = patient.occupation;
                 if (education_status != null)
                 {
                     var occupation = occupation_status.ToString().Trim();
@@ -1050,7 +1089,7 @@ namespace Common
                     }
                 }
 
-                var next_kin = reader["next_kin"];
+                var next_kin = patient.next_kin;
                 if (next_kin != null)
                 {
                     var nextKin = next_kin.ToString().Trim();
@@ -1068,7 +1107,7 @@ namespace Common
                     }
                 }
 
-                var phone_kin = reader["phone_kin"];
+                var phone_kin = patient.phone_kin;
                 if (phone_kin != null)
                 {
                     var phoneKin = phone_kin.ToString().Trim();
@@ -1086,7 +1125,7 @@ namespace Common
                     }
                 }
 
-                var relation_kin = reader["relation_kin"];
+                var relation_kin = patient.relation_kin;
                 if (relation_kin != null)
                 {
                     var relationKin = relation_kin.ToString().Trim();
@@ -1155,7 +1194,7 @@ namespace Common
                     }
                 }
 
-                var pregnant_status = reader["pregnant"];
+                var pregnant_status = patient.pregnant;
                 if (pregnant_status != null)
                 {
                     var pregnant = pregnant_status.ToString().Trim();
@@ -1187,7 +1226,7 @@ namespace Common
                     }
                 }
 
-                var breastfeeding_status = reader["breastfeeding"];
+                var breastfeeding_status = patient.breastfeeding;
                 if (breastfeeding_status != null)
                 {
                     var breastfeeding = breastfeeding_status.ToString().Trim();
@@ -1231,483 +1270,486 @@ namespace Common
         }
         public List<Encounter> BuildCareCardAndVitals(long patientId, string dateOfBirth)
         {            
-
             try
             {
                 var vitalCare = new List<Encounter>();
 
-                using (NpgsqlConnection connection = new NpgsqlConnection(Utilities.GetConnectionString("pgconn")))
+                if (clinicData == null)
+                    clinicData = GetClinicData();
+
+                if (!clinicData.Any())
                 {
-                    connection.Open();
-                    var q = "SELECT * FROM clinic where patient_id =" + patientId;
+                    Console.WriteLine("WARNING: Clinic data List could not be retrieved. Clinicals not migrated");
+                    return vitalCare;
+                }
 
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(q, connection))
+                var patientClinicals = clinicData.Where(c => c.patient_id == patientId).ToList();
+
+                if (!patientClinicals.Any())
+                {
+                    Console.WriteLine("WARNING: Patient's Clinical data list is empty. Clinicals not migrated");
+                    return vitalCare;
+                }
+
+                patientClinicals.ForEach (clinic =>
+                {
+                    var obs = new List<Obs>();
+
+                    var careCard = new Encounter
                     {
-                        using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                        encounterType = "0b8d256c-e5df-4801-9653-b6ae5b6e906b", //care card
+                        encounterDatetime = "",
+                        location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
+                        form = "5d522e63-463e-4a9f-a2c1-7ebbe4069a49", //care card
+                        //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                        obs = new List<Obs>()
+                    };
+
+                    var vitals = new Encounter
+                    {
+                        encounterType = "", //vitals
+                        encounterDatetime = "",
+                        location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
+                        form = "a000cb34-9ec1-4344-a1c8-f692232f6edd", //vitals
+                        //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                        obs = new List<Obs>()
+                    };
+
+                    var visitDateX = clinic.date_visit;     
+                    if(visitDateX != null)
+                    {
+                        var visitDateStr = visitDateX.ToString();
+                        if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
                         {
-                            if (reader.HasRows)
-                            {             
-                                while (reader.Read())
+                            var visitDateObs = new Obs
+                            {
+                                concept =((int)Concepts.VisitDate).ToString(),
+                                value = visitDate.ToString("yyyy-MM-dd"),
+                                groupMembers = new List<Obs>()
+                            };
+                            visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
+                            obs.Add(visitDateObs);
+
+                            careCard.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
+                            vitals.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
+
+                            var bpStr = clinic.bp;
+                            if(bpStr != null)
+                            {
+                                var bp = bpStr.ToString().Trim().Replace(" ", string.Empty);
+                                if (!string.IsNullOrEmpty(bp))
                                 {
-                                    var obs = new List<Obs>();
-
-                                    var careCard = new Encounter
+                                    if (bp != "/")
                                     {
-                                        encounterType = "0b8d256c-e5df-4801-9653-b6ae5b6e906b", //care card
-                                        encounterDatetime = "",
-                                        location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
-                                        form = "5d522e63-463e-4a9f-a2c1-7ebbe4069a49", //care card
-                                        //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
-                                        obs = new List<Obs>()
-                                    };
-
-                                    var vitals = new Encounter
-                                    {
-                                        encounterType = "67a71486-1a54-468f-ac3e-7091a9a79584", //vitals
-                                        encounterDatetime = "",
-                                        location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
-                                        form = "a000cb34-9ec1-4344-a1c8-f692232f6edd", //vitals
-                                        //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
-                                        obs = new List<Obs>()
-                                    };
-
-                                    var visitDateX = reader["date_visit"];     
-                                    if(visitDateX != null)
-                                    {
-                                        var visitDateStr = visitDateX.ToString();
-                                        if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
+                                        //Example: "110/70"
+                                        var bps = bp.Split('/');
+                                        if (bps.Length > 1)
                                         {
-                                            var visitDateObs = new Obs
+                                            var systolicObs = new Obs
                                             {
-                                                concept =((int)Concepts.VisitDate).ToString(),
-                                                value = visitDate.ToString("yyyy-MM-dd"),
+                                                concept =((int)BloodPressure.Systolic).ToString(),
+                                                value = bps[0],
                                                 groupMembers = new List<Obs>()
                                             };
-                                            visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
-                                            obs.Add(visitDateObs);
+                                            systolicObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == systolicObs.concept).UuId;
+                                            obs.Add(systolicObs);
 
-                                            careCard.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
-                                            vitals.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
-
-                                            var bpStr = reader["bp"];
-                                            if(bpStr != null)
+                                            var outDiastObs = new Obs
                                             {
-                                                var bp = bpStr.ToString().Trim().Replace(" ", string.Empty);
-                                                if (!string.IsNullOrEmpty(bp))
-                                                {
-                                                    if (bp != "/")
-                                                    {
-                                                        //"110/70"
-                                                        var bps = bp.Split('/');
-                                                        if (bps.Length > 1)
-                                                        {
-                                                            var systolicObs = new Obs
-                                                            {
-                                                                concept =((int)BloodPressure.Systolic).ToString(),
-                                                                value = bps[0],
-                                                                groupMembers = new List<Obs>()
-                                                            };
-                                                            systolicObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == systolicObs.concept).UuId;
-                                                            obs.Add(systolicObs);
-
-                                                            var outDiastObs = new Obs
-                                                            {
-                                                                concept =((int)BloodPressure.Diastolic).ToString(),
-                                                                value = bps[1],
-                                                                groupMembers = new List<Obs>()
-                                                            };
-                                                            outDiastObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == outDiastObs.concept).UuId;
-                                                            obs.Add(outDiastObs);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                           
-                                            var weightStr = reader["body_weight"];
-                                            if(weightStr != null)
-                                            {
-                                                var weight = weightStr.ToString();
-                                                float wOut = 0;
-                                                if (!string.IsNullOrEmpty(weight))
-                                                {
-                                                    var wt = Regex.Match(weight, "\\d+");
-                                                    var sts = float.TryParse(wt.ToString(), out wOut);
-
-                                                    if (wOut > 0 && sts)
-                                                    {
-                                                        var weightObs = new Obs
-                                                        {
-                                                            concept =((int)Concepts.Weight).ToString(),
-                                                            value = wOut > 250? "250" : wOut.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        weightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == weightObs.concept).UuId;
-                                                        obs.Add(weightObs);
-                                                        vitals.obs.Add(weightObs);
-                                                    }
-                                                }
-                                            }
-                                           
-                                            var whoStageStr = reader["clinic_stage"];
-                                            if (whoStageStr != null)
-                                            {
-                                                if (!string.IsNullOrEmpty(visitDateStr) && !string.IsNullOrEmpty(dateOfBirth))
-                                                {
-                                                    var ageAtVist = visitDate.Year - Convert.ToDateTime(dateOfBirth).Year;
-
-                                                    var whoStage = whoStageStr.ToString();
-
-                                                    if (!string.IsNullOrEmpty(whoStage))
-                                                    {
-                                                        int conceptId;
-
-                                                        switch (whoStage)
-                                                        {
-                                                            case "Stage I":
-                                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage1 : (int)WhoStage.paedStage1;
-                                                                break;
-                                                            case "Stage II":
-                                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage2 : (int)WhoStage.paedStage2;
-                                                                break;
-                                                            case "Stage III":
-                                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage3 : (int)WhoStage.paedStage3;
-                                                                break;
-                                                            case "Stage IV":
-                                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage4 : (int)WhoStage.paedStage4;
-                                                                break;
-                                                            default:
-                                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage1 : (int)WhoStage.paedStage1; //default: adult/paed stage 1
-                                                                break;
-                                                        }
-                                                        var whoStageObs = new Obs
-                                                        {
-                                                            concept =((int)WhoStage.concept).ToString(),
-                                                            value = conceptId.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
-                                                        whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
-                                                        obs.Add(whoStageObs);
-                                                    }
-                                                }
-                                            }
-
-                                            //pregnant
-                                            var pregnStr = reader["pregnant"]; 
-                                            if (pregnStr != null)
-                                            {
-                                                var pregn = pregnStr.ToString();
-                                                if (!string.IsNullOrEmpty(pregn))
-                                                {
-                                                    int pregConceptId;
-
-                                                    switch (pregn)
-                                                    {
-                                                        case "1":
-                                                            pregConceptId = (int)PregnancyStatus.pregnant;
-                                                            break;
-                                                        case "0":
-                                                            pregConceptId = (int)PregnancyStatus.notPregnant;
-                                                            break;
-                                                        default:
-                                                            pregConceptId = (int)PregnancyStatus.notPregnant;
-                                                            break;
-                                                    }
-
-                                                    var pregnObs = new Obs
-                                                    {
-                                                        concept =((int)PregnancyStatus.concept).ToString(),
-                                                        value = pregConceptId.ToString(),
-                                                        groupMembers = new List<Obs>()
-                                                    };
-                                                    pregnObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.concept).UuId;
-                                                    pregnObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.value).UuId;
-                                                    obs.Add(pregnObs);
-                                                }
-                                            }
-                                            
-                                            //breastfeeding
-                                            var breastfeedingStr = reader["breastfeeding"];
-                                            if(breastfeedingStr != null)
-                                            {
-                                                var breastfeeding = breastfeedingStr.ToString();
-
-                                                if (!string.IsNullOrEmpty(breastfeeding))
-                                                {
-                                                    if (breastfeeding.ToLower() == "1")
-                                                    {
-                                                        var pregnObs = new Obs
-                                                        {
-                                                            concept =((int)PregnancyStatus.concept).ToString(),
-                                                            value = ((int)PregnancyStatus.breastFeeding).ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        pregnObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.concept).UuId;
-                                                        pregnObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.value).UuId;
-                                                        obs.Add(pregnObs);
-                                                    }
-                                                }
-                                            }
-                                           
-                                            var nextApptDateStr = reader["next_appointment"];
-                                            if(nextApptDateStr != null)
-                                            {
-                                                var nextApptDate = nextApptDateStr.ToString();
-                                                if (!string.IsNullOrEmpty(nextApptDate))
-                                                {
-                                                    if (DateTime.TryParse(nextApptDate.Trim(), out DateTime nextAppointment))
-                                                    {
-                                                        var nextAptDateObs = new Obs
-                                                        {
-                                                            concept = ((int)Concepts.nextAppointmentDate).ToString(),
-                                                            value = nextAppointment.ToString("yyyy-MM-dd"),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        nextAptDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == nextAptDateObs.concept).UuId;
-                                                        obs.Add(nextAptDateObs);
-                                                    }                                                    
-                                                }
-                                            }
-                                            
-                                            var fStatus = reader["func_status"];
-                                            if (fStatus != null)
-                                            {
-                                                var functionalStatus = fStatus.ToString().Trim().Replace(" ", string.Empty);
-
-                                                if (!string.IsNullOrEmpty(functionalStatus))
-                                                {
-                                                    int conceptId;
-                                                    switch (functionalStatus.ToLower())
-                                                    {
-                                                        case "working":
-                                                            conceptId = (int)FunctionalStatus.working;
-                                                            break;
-                                                        case "bedridden":
-                                                            conceptId = (int)FunctionalStatus.bedRidden;
-                                                            break;
-                                                        case "bed-ridden":
-                                                            conceptId = (int)FunctionalStatus.bedRidden;
-                                                            break;
-                                                        case "ambulatory":
-                                                            conceptId = (int)FunctionalStatus.ambulatory;
-                                                            break;
-                                                        default:
-                                                            conceptId = (int)FunctionalStatus.working;
-                                                            break;
-                                                    }
-
-                                                    var fStatusObs = new Obs
-                                                    {
-                                                        concept =((int)FunctionalStatus.concept).ToString(),
-                                                        value = conceptId.ToString(),
-                                                        groupMembers = new List<Obs>()
-                                                    };
-                                                    fStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.concept).UuId;
-                                                    fStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.value).UuId;
-                                                    obs.Add(fStatusObs);
-                                                }
-                                            }
-
-                                            var heightStr = reader["height"];
-                                            if(heightStr != null)
-                                            {
-                                                var height  = heightStr.ToString();
-                                                if (!string.IsNullOrEmpty(height))
-                                                {
-                                                    if(float.TryParse(height, out float ht))
-                                                    {
-                                                        var heightObs = new Obs
-                                                        {
-                                                            concept = ((int)Concepts.height).ToString(),
-                                                            value = ht != 0 && ht < 10? (ht*10).ToString() : ht == 0? "10" : ht > 272 ? "272" : ht.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        heightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == heightObs.concept).UuId;
-                                                        obs.Add(heightObs);
-                                                        vitals.obs.Add(heightObs);
-                                                    }                                                    
-                                                }
-                                            }
-                                            
-                                            var tbStatus = reader["tb_status"];
-                                            if (tbStatus != null)
-                                            {
-                                                var tbStatusStr = tbStatus.ToString().Trim();
-
-                                                if (!string.IsNullOrEmpty(tbStatusStr))
-                                                {
-                                                    int conceptId;
-                                                    switch (tbStatusStr.ToLower())
-                                                    {
-                                                        case "no sign or symptoms of tb":
-                                                            conceptId = (int)TBStatus.noTbSigns;
-                                                            break;
-                                                        case "currently on tb treatment":
-                                                            conceptId = (int)TBStatus.tbTreatment;
-                                                            break;
-                                                        case "tb suspected and referred for evaluation":
-                                                            conceptId = (int)TBStatus.presumptiveTB;
-                                                            break;
-                                                        case "currently on inh prophylaxis":
-                                                            conceptId = (int)TBStatus.inhProphylaxis;
-                                                            break;
-                                                        default:
-                                                            conceptId = (int)TBStatus.noTbSigns;
-                                                            break;
-                                                    }
-
-                                                    var tbStatusObs = new Obs
-                                                    {
-                                                        concept =((int)TBStatus.concept).ToString(),
-                                                        value = conceptId.ToString(),
-                                                        groupMembers = new List<Obs>()
-                                                    };
-                                                    tbStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == tbStatusObs.concept).UuId;
-                                                    tbStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == tbStatusObs.value).UuId;
-                                                    obs.Add(tbStatusObs);
-                                                }
-                                            }
-
-                                            var regimenTypeStr = reader["regimentype"];
-                                            var regimenStr = reader["regimen"];
-                                            
-                                            if(regimenTypeStr != null && regimenStr != null)
-                                            {
-                                                var regimenType = regimenTypeStr.ToString().Trim();
-                                                var regimen = regimenStr.ToString().Trim();
-                                                if (!string.IsNullOrEmpty(regimenType) && !string.IsNullOrEmpty(regimen))
-                                                {
-                                                    var rootWord = regimenType.ToLower().Contains("children") ? "Children" : "Adult";
-                                                    var rgs = regimens.Where(r => r.Answers == regimen && r.Values.Contains(rootWord)).ToList();
-                                                    if (rgs.Any())
-                                                    {
-                                                        var rg = rgs[0];
-
-                                                        // Current regimen Line
-                                                        var currentRegLineObs = new Obs
-                                                        {
-                                                            concept =((int)CurrentRegimenLine.concept).ToString(),
-                                                            value = rg.NMRSQuestionConceptID.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
-                                                        currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
-                                                        obs.Add(currentRegLineObs);
-
-                                                        // Regimen
-                                                        var regimenObs = new Obs
-                                                        {
-                                                            concept =rg.NMRSQuestionConceptID.ToString(),
-                                                            value = rg.NMRSAnswerConceptID.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
-                                                        regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
-                                                        obs.Add(regimenObs);
-                                                    }
-
-                                                }
-                                            }
-                                            
-                                            var adherence = reader["adherence_level"];
-                                            if (adherence != null)
-                                            {
-                                                var drugAdherence = adherence.ToString().Trim();
-
-                                                if (!string.IsNullOrEmpty(drugAdherence))
-                                                {
-                                                    int conceptId;
-                                                    switch (drugAdherence.ToLower())
-                                                    {
-                                                        case "fair":
-                                                            conceptId = (int)DrugAdhenrence.Fair;
-                                                            break;
-                                                        case "good":
-                                                            conceptId = (int)DrugAdhenrence.Good;
-                                                            break;
-                                                        case "poor":
-                                                            conceptId = (int)DrugAdhenrence.Poor;
-                                                            break;
-                                                        default:
-                                                            conceptId = (int)DrugAdhenrence.Good;
-                                                            break;
-                                                    }
-
-                                                    var drugAdherenceObs = new Obs
-                                                    {
-                                                        concept =((int)DrugAdhenrence.concept).ToString(),
-                                                        value = conceptId.ToString(),
-                                                        groupMembers = new List<Obs>()
-                                                    };
-                                                    drugAdherenceObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceObs.concept).UuId;
-                                                    drugAdherenceObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceObs.value).UuId;
-                                                    obs.Add(drugAdherenceObs);
-                                                }
-                                            }
-
-                                            var oiIds = reader["oi_ids"];
-                                            if (oiIds != null)
-                                            {
-                                                var oisX = oiIds.ToString();
-                                                if(!string.IsNullOrEmpty(oisX))
-                                                {
-                                                    var ois = oisX.ToString().Trim().Split(',').ToList();
-                                                    ois.ForEach(o =>
-                                                    {
-                                                        int conceptId;
-                                                        switch (o)
-                                                        {
-                                                            case "1":
-                                                                conceptId = (int)OIs.Herpes_Zoster;
-                                                                break;
-                                                            case "2":
-                                                                conceptId = (int)OIs.Pneumonia;
-                                                                break;
-                                                            case "3":
-                                                                conceptId = (int)OIs.Dementia_Encephalitis;
-                                                                break;
-                                                            case "4":
-                                                                conceptId = (int)OIs.Candidaisis_Oral_Virginal;
-                                                                break;
-                                                            case "5":
-                                                                conceptId = (int)OIs.Fever;
-                                                                break;
-                                                            case "6":
-                                                                conceptId = (int)OIs.Cough;
-                                                                break;
-                                                            case "7":
-                                                                conceptId = (int)OIs.SkinInfection;
-                                                                break;
-                                                            default:
-                                                                conceptId = (int)OIs.Fever;
-                                                                break;
-                                                        }
-
-                                                        var oiObs = new Obs
-                                                        {
-                                                            concept =((int)OIs.concept).ToString(),
-                                                            value = conceptId.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        oiObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiObs.concept).UuId;
-                                                        oiObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiObs.value).UuId;
-                                                        obs.Add(oiObs);
-                                                    });
-                                                }                                                
-                                            }
-
-                                            careCard.obs = obs;
-
-                                            vitalCare.Add(careCard);
-                                            vitalCare.Add(vitals);
+                                                concept =((int)BloodPressure.Diastolic).ToString(),
+                                                value = bps[1],
+                                                groupMembers = new List<Obs>()
+                                            };
+                                            outDiastObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == outDiastObs.concept).UuId;
+                                            obs.Add(outDiastObs);
                                         }
-                                    }                                 
-                                    
+                                    }
                                 }
                             }
+                                           
+                            var weightStr = clinic.body_weight;
+                            if(weightStr != null)
+                            {
+                                var weight = weightStr.ToString();
+                                float wOut = 0;
+                                if (!string.IsNullOrEmpty(weight))
+                                {
+                                    var wt = Regex.Match(weight, "\\d+");
+                                    var sts = float.TryParse(wt.ToString(), out wOut);
+
+                                    if (wOut > 0 && sts)
+                                    {
+                                        var weightObs = new Obs
+                                        {
+                                            concept =((int)Concepts.Weight).ToString(),
+                                            value = wOut > 250? "250" : wOut.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        weightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == weightObs.concept).UuId;
+                                        obs.Add(weightObs);
+                                        vitals.obs.Add(weightObs);
+                                    }
+                                }
+                            }
+                                           
+                            var whoStageStr = clinic.clinic_stage;
+                            if (whoStageStr != null)
+                            {
+                                if (!string.IsNullOrEmpty(visitDateStr) && !string.IsNullOrEmpty(dateOfBirth))
+                                {
+                                    var ageAtVist = visitDate.Year - Convert.ToDateTime(dateOfBirth).Year;
+
+                                    var whoStage = whoStageStr.ToString();
+
+                                    if (!string.IsNullOrEmpty(whoStage))
+                                    {
+                                        int conceptId;
+
+                                        switch (whoStage)
+                                        {
+                                            case "Stage I":
+                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage1 : (int)WhoStage.paedStage1;
+                                                break;
+                                            case "Stage II":
+                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage2 : (int)WhoStage.paedStage2;
+                                                break;
+                                            case "Stage III":
+                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage3 : (int)WhoStage.paedStage3;
+                                                break;
+                                            case "Stage IV":
+                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage4 : (int)WhoStage.paedStage4;
+                                                break;
+                                            default:
+                                                conceptId = ageAtVist > 14 ? (int)WhoStage.adultStage1 : (int)WhoStage.paedStage1; //default: adult/paed stage 1
+                                                break;
+                                        }
+                                        var whoStageObs = new Obs
+                                        {
+                                            concept =((int)WhoStage.concept).ToString(),
+                                            value = conceptId.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
+                                        whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
+                                        obs.Add(whoStageObs);
+                                    }
+                                }
+                            }
+
+                            //pregnant
+                            var pregnStr = clinic.pregnant; 
+                            if (pregnStr != null)
+                            {
+                                var pregn = pregnStr.ToString();
+                                if (!string.IsNullOrEmpty(pregn))
+                                {
+                                    int pregConceptId;
+
+                                    switch (pregn)
+                                    {
+                                        case "1":
+                                            pregConceptId = (int)PregnancyStatus.pregnant;
+                                            break;
+                                        case "0":
+                                            pregConceptId = (int)PregnancyStatus.notPregnant;
+                                            break;
+                                        default:
+                                            pregConceptId = (int)PregnancyStatus.notPregnant;
+                                            break;
+                                    }
+
+                                    var pregnObs = new Obs
+                                    {
+                                        concept =((int)PregnancyStatus.concept).ToString(),
+                                        value = pregConceptId.ToString(),
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    pregnObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.concept).UuId;
+                                    pregnObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.value).UuId;
+                                    obs.Add(pregnObs);
+                                }
+                            }
+                                            
+                            //breastfeeding
+                            var breastfeedingStr = clinic.breastfeeding;
+                            if(breastfeedingStr != null)
+                            {
+                                var breastfeeding = breastfeedingStr.ToString();
+
+                                if (!string.IsNullOrEmpty(breastfeeding))
+                                {
+                                    if (breastfeeding.ToLower() == "1")
+                                    {
+                                        var pregnObs = new Obs
+                                        {
+                                            concept =((int)PregnancyStatus.concept).ToString(),
+                                            value = ((int)PregnancyStatus.breastFeeding).ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        pregnObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.concept).UuId;
+                                        pregnObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pregnObs.value).UuId;
+                                        obs.Add(pregnObs);
+                                    }
+                                }
+                            }
+                                           
+                            var nextApptDateStr = clinic.next_appointment;
+                            if(nextApptDateStr != null)
+                            {
+                                var nextApptDate = nextApptDateStr.ToString();
+                                if (!string.IsNullOrEmpty(nextApptDate))
+                                {
+                                    if (DateTime.TryParse(nextApptDate.Trim(), out DateTime nextAppointment))
+                                    {
+                                        var nextAptDateObs = new Obs
+                                        {
+                                            concept = ((int)Concepts.nextAppointmentDate).ToString(),
+                                            value = nextAppointment.ToString("yyyy-MM-dd"),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        nextAptDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == nextAptDateObs.concept).UuId;
+                                        obs.Add(nextAptDateObs);
+                                    }                                                    
+                                }
+                            }
+                                            
+                            var fStatus = clinic.func_status;
+                            if (fStatus != null)
+                            {
+                                var functionalStatus = fStatus.ToString().Trim().Replace(" ", string.Empty);
+
+                                if (!string.IsNullOrEmpty(functionalStatus))
+                                {
+                                    int conceptId;
+                                    switch (functionalStatus.ToLower())
+                                    {
+                                        case "working":
+                                            conceptId = (int)FunctionalStatus.working;
+                                            break;
+                                        case "bedridden":
+                                            conceptId = (int)FunctionalStatus.bedRidden;
+                                            break;
+                                        case "bed-ridden":
+                                            conceptId = (int)FunctionalStatus.bedRidden;
+                                            break;
+                                        case "ambulatory":
+                                            conceptId = (int)FunctionalStatus.ambulatory;
+                                            break;
+                                        default:
+                                            conceptId = (int)FunctionalStatus.working;
+                                            break;
+                                    }
+
+                                    var fStatusObs = new Obs
+                                    {
+                                        concept =((int)FunctionalStatus.concept).ToString(),
+                                        value = conceptId.ToString(),
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    fStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.concept).UuId;
+                                    fStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.value).UuId;
+                                    obs.Add(fStatusObs);
+                                }
+                            }
+
+                            var heightStr = clinic.height;
+                            if(heightStr != null)
+                            {
+                                var height  = heightStr.ToString();
+                                if (!string.IsNullOrEmpty(height))
+                                {
+                                    if(float.TryParse(height, out float ht))
+                                    {
+                                        var heightObs = new Obs
+                                        {
+                                            concept = ((int)Concepts.height).ToString(),
+                                            value = ht != 0 && ht < 10? (ht*10).ToString() : ht == 0? "10" : ht > 272 ? "272" : ht.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        heightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == heightObs.concept).UuId;
+                                        obs.Add(heightObs);
+                                        vitals.obs.Add(heightObs);
+                                        vitals.encounterType = "67a71486-1a54-468f-ac3e-7091a9a79584";
+                                    }                                                    
+                                }
+                            }
+                                            
+                            var tbStatus = clinic.tb_status;
+                            if (tbStatus != null)
+                            {
+                                var tbStatusStr = tbStatus.ToString().Trim();
+
+                                if (!string.IsNullOrEmpty(tbStatusStr))
+                                {
+                                    int conceptId;
+                                    switch (tbStatusStr.ToLower())
+                                    {
+                                        case "no sign or symptoms of tb":
+                                            conceptId = (int)TBStatus.noTbSigns;
+                                            break;
+                                        case "currently on tb treatment":
+                                            conceptId = (int)TBStatus.tbTreatment;
+                                            break;
+                                        case "tb suspected and referred for evaluation":
+                                            conceptId = (int)TBStatus.presumptiveTB;
+                                            break;
+                                        case "currently on inh prophylaxis":
+                                            conceptId = (int)TBStatus.inhProphylaxis;
+                                            break;
+                                        default:
+                                            conceptId = (int)TBStatus.noTbSigns;
+                                            break;
+                                    }
+
+                                    var tbStatusObs = new Obs
+                                    {
+                                        concept =((int)TBStatus.concept).ToString(),
+                                        value = conceptId.ToString(),
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    tbStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == tbStatusObs.concept).UuId;
+                                    tbStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == tbStatusObs.value).UuId;
+                                    obs.Add(tbStatusObs);
+                                }
+                            }
+
+                            var regimenTypeStr = clinic.regimentype;
+                            var regimenStr = clinic.regimen;
+                                            
+                            if(regimenTypeStr != null && regimenStr != null)
+                            {
+                                var regimenType = regimenTypeStr.ToString().Trim();
+                                var regimen = regimenStr.ToString().Trim();
+                                if (!string.IsNullOrEmpty(regimenType) && !string.IsNullOrEmpty(regimen))
+                                {
+                                    var rootWord = regimenType.ToLower().Contains("children") ? "Children" : "Adult";
+                                    var rgs = regimens.Where(r => r.Answers == regimen && r.Values.Contains(rootWord)).ToList();
+                                    if (rgs.Any())
+                                    {
+                                        var rg = rgs[0];
+
+                                        // Current regimen Line
+                                        var currentRegLineObs = new Obs
+                                        {
+                                            concept =((int)CurrentRegimenLine.concept).ToString(),
+                                            value = rg.NMRSQuestionConceptID.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
+                                        currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
+                                        obs.Add(currentRegLineObs);
+
+                                        // Regimen
+                                        var regimenObs = new Obs
+                                        {
+                                            concept =rg.NMRSQuestionConceptID.ToString(),
+                                            value = rg.NMRSAnswerConceptID.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
+                                        regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
+                                        obs.Add(regimenObs);
+                                    }
+
+                                }
+                            }
+                                            
+                            var adherence = clinic.adherence_level;
+                            if (adherence != null)
+                            {
+                                var drugAdherence = adherence.ToString().Trim();
+
+                                if (!string.IsNullOrEmpty(drugAdherence))
+                                {
+                                    int conceptId;
+                                    switch (drugAdherence.ToLower())
+                                    {
+                                        case "fair":
+                                            conceptId = (int)DrugAdhenrence.Fair;
+                                            break;
+                                        case "good":
+                                            conceptId = (int)DrugAdhenrence.Good;
+                                            break;
+                                        case "poor":
+                                            conceptId = (int)DrugAdhenrence.Poor;
+                                            break;
+                                        default:
+                                            conceptId = (int)DrugAdhenrence.Good;
+                                            break;
+                                    }
+
+                                    var drugAdherenceObs = new Obs
+                                    {
+                                        concept =((int)DrugAdhenrence.concept).ToString(),
+                                        value = conceptId.ToString(),
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    drugAdherenceObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceObs.concept).UuId;
+                                    drugAdherenceObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceObs.value).UuId;
+                                    obs.Add(drugAdherenceObs);
+                                }
+                            }
+
+                            var oiIds = clinic.oi_ids;
+                            if (oiIds != null)
+                            {
+                                var oisX = oiIds.ToString();
+                                if(!string.IsNullOrEmpty(oisX))
+                                {
+                                    var ois = oisX.ToString().Trim().Split(',').ToList();
+                                    ois.ForEach(o =>
+                                    {
+                                        int conceptId;
+                                        switch (o)
+                                        {
+                                            case "1":
+                                                conceptId = (int)OIs.Herpes_Zoster;
+                                                break;
+                                            case "2":
+                                                conceptId = (int)OIs.Pneumonia;
+                                                break;
+                                            case "3":
+                                                conceptId = (int)OIs.Dementia_Encephalitis;
+                                                break;
+                                            case "4":
+                                                conceptId = (int)OIs.Candidaisis_Oral_Virginal;
+                                                break;
+                                            case "5":
+                                                conceptId = (int)OIs.Fever;
+                                                break;
+                                            case "6":
+                                                conceptId = (int)OIs.Cough;
+                                                break;
+                                            case "7":
+                                                conceptId = (int)OIs.SkinInfection;
+                                                break;
+                                            default:
+                                                conceptId = (int)OIs.Fever;
+                                                break;
+                                        }
+
+                                        var oiObs = new Obs
+                                        {
+                                            concept =((int)OIs.concept).ToString(),
+                                            value = conceptId.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        oiObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiObs.concept).UuId;
+                                        oiObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiObs.value).UuId;
+                                        obs.Add(oiObs);
+                                    });
+                                }                                                
+                            }
+
+                            careCard.obs = obs;
+
+                            vitalCare.Add(careCard);
+                            if (!string.IsNullOrEmpty(vitals.encounterType))
+                                vitalCare.Add(vitals);
                         }
-                    }
-                }
+                    }                                 
+                                    
+                });
 
                 return vitalCare;
             }
@@ -1723,71 +1765,242 @@ namespace Common
             var pharmacies = new List<Encounter>();
             try
             {
-                using (NpgsqlConnection connection = new NpgsqlConnection(Utilities.GetConnectionString("pgconn")))
+                if (!pharmacyDataList.Any())
+                    pharmacyDataList = GetPharmacyData();
+
+                if (!pharmacyDataList.Any())
                 {
-                    connection.Open();
-                    var q = "select pharmacy_id,patient_id,date_visit, r.description as regimen, rt.description as regimentype,duration,morning,afternoon,evening,adherence,next_appointment,time_stamp from (select * from pharmacy where patient_id = " + patientId + ") as p join (select * from regimen) r on p.regimen_id = r.regimen_id join (select * from regimentype) rt on p.regimentype_id = rt.regimentype_id";
+                    Console.WriteLine("WARNING: Patient's Pharmacy data list is empty. Pharmacy data not migrated");
+                    return pharmacies;
+                }
 
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(q, connection))
+                var patientPharmacies = pharmacyDataList.Where(c => c.patient_id == patientId).ToList();
+
+                if (!patientPharmacies.Any())
+                {
+                    Console.WriteLine("WARNING: Patient's Pharmacy data list is empty. Pharmacy not migrated");
+                    return pharmacies;
+                }
+
+                patientPharmacies.ForEach(ph => 
+                {
+                    var visitDateX = ph.date_visit;
+                    if (visitDateX != null)
                     {
-                        using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                        var visitDateStr = visitDateX.ToString();
+                        if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
                         {
-                            if (reader.HasRows)
+
+                            var pharmacy = new Encounter
                             {
-                                while (reader.Read())
+                                encounterType = "a1fa6aa3-59e1-4833-a28c-bb62f2fb07df", //pharmacy
+                                encounterDatetime = "",
+                                location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
+                                form = "4a238dc4-a76b-4c0f-a100-229d98fd5758", //pharmacy form
+                                                                               //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                                obs = new List<Obs>()
+                            };
+
+                            pharmacy.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
+
+                            var exs = pharmacies.Where(d => d.encounterDatetime == pharmacy.encounterDatetime).ToList();
+                            if (exs.Any())
+                            {
+                                pharmacy = exs[0];
+                            }
+
+                            var visitDateObs = new Obs
+                            {
+                                concept = ((int)Concepts.VisitDate).ToString(),
+                                value = visitDate.ToString("yyyy-MM-dd"),
+                                groupMembers = new List<Obs>()
+                            };
+                            visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
+
+                            if (!pharmacy.obs.Any(t => t.concept == visitDateObs.concept))
+                                pharmacy.obs.Add(visitDateObs);
+
+                            // ----------- Treatment Age Category
+                            if (!string.IsNullOrEmpty(visitDateStr) && !string.IsNullOrEmpty(date_of_birth))
+                            {
+                                var ageAtVist = visitDate.Year - Convert.ToDateTime(date_of_birth).Year;
+
+                                var trxAgeObs = new Obs
                                 {
-                                    var visitDateX = reader["date_visit"];
-                                    if (visitDateX != null)
+                                    concept = ((int)TreatmentAge.concept).ToString(),
+                                    value = ageAtVist > 14 ? ((int)TreatmentAge.Adult).ToString() : ((int)TreatmentAge.Child).ToString(),
+                                    groupMembers = new List<Obs>()
+                                };
+                                trxAgeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.concept).UuId;
+                                trxAgeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.value).UuId;
+
+                                if (!pharmacy.obs.Any(t => t.concept == trxAgeObs.concept))
+                                    pharmacy.obs.Add(trxAgeObs);
+                            }
+
+                            var regimenTypeStr = ph.regimentype;
+                            var regimenStr = ph.regimen;
+
+                            if (regimenTypeStr != null && regimenStr != null)
+                            {
+                                var regimenType = regimenTypeStr.ToString().Trim();
+                                var regimen = regimenStr.ToString().Trim();
+                                if (!string.IsNullOrEmpty(regimenType) && !string.IsNullOrEmpty(regimen))
+                                {
+                                    var rootWord = regimenType.ToLower().Contains("children") ? "Children" : "Adult";
+                                    var rgs = regimens.Where(r => r.Answers == regimen && r.Values.Contains(rootWord)).ToList();
+                                    if (rgs.Any())
                                     {
-                                        var visitDateStr = visitDateX.ToString();
-                                        if (DateTime.TryParse(visitDateStr.Trim(), out DateTime visitDate))
+                                        var rg = rgs[0];
+
+                                        // Human immunodeficiency virus treatment regimen
+                                        var grObs = new Obs
                                         {
-                                            var pharmacy = new Encounter
-                                            {
-                                                encounterType = "a1fa6aa3-59e1-4833-a28c-bb62f2fb07df", //pharmacy
-                                                encounterDatetime = "",
-                                                location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
-                                                form = "4a238dc4-a76b-4c0f-a100-229d98fd5758", //pharmacy form
-                                                                                               //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
-                                                obs = new List<Obs>()
-                                            };
+                                            concept = ((int)ARVRegimen.concept).ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == grObs.concept).UuId;
 
-                                            var visitDateObs = new Obs
-                                            {
-                                                concept =((int)Concepts.VisitDate).ToString(),
-                                                value = visitDate.ToString("yyyy-MM-dd"),
-                                                groupMembers = new List<Obs>()
-                                            };
-                                            visitDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitDateObs.concept).UuId;
-                                            pharmacy.obs.Add(visitDateObs);
 
-                                            pharmacy.encounterDatetime = visitDate.ToString("yyyy-MM-dd");
+                                        // Current regimen Line
+                                        var currentRegLineObs = new Obs
+                                        {
+                                            concept = ((int)CurrentRegimenLine.concept).ToString(),
+                                            value = rg.NMRSQuestionConceptID.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
+                                        currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
 
-                                            // Human immunodeficiency virus treatment regimen
-                                            var grObs = new Obs
-                                            {
-                                                concept = ((int)ARVRegimen.concept).ToString(),
-                                                groupMembers = new List<Obs>()
-                                            };
-                                            grObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == grObs.concept).UuId;
+                                        if (!pharmacy.obs.Any(t => t.concept == currentRegLineObs.concept))
+                                            pharmacy.obs.Add(currentRegLineObs);
 
-                                            // ----------- Treatment Age Category
-                                            if (!string.IsNullOrEmpty(visitDateStr) && !string.IsNullOrEmpty(date_of_birth))
+                                        // Regimen
+                                        var regimenObs = new Obs
+                                        {
+                                            concept = rg.NMRSQuestionConceptID.ToString(),
+                                            value = rg.NMRSAnswerConceptID.ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
+                                        regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
+
+                                        if (!pharmacy.obs.Any(t => t.concept == regimenObs.concept))
+                                            pharmacy.obs.Add(regimenObs);
+
+                                        //Treatment type
+                                        var treatmentTyeObs = new Obs
+                                        {
+                                            concept = ((int)TreatmentType.concept).ToString(),
+                                            value = ((int)TreatmentType.AntiretroviralTherapy).ToString(),
+                                            groupMembers = new List<Obs>()
+                                        };
+                                        treatmentTyeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.concept).UuId;
+                                        treatmentTyeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.value).UuId;
+
+                                        if (!pharmacy.obs.Any(t => t.concept == treatmentTyeObs.concept))
+                                            pharmacy.obs.Add(treatmentTyeObs);
+
+                                        var durationStr = ph.duration;
+                                        if (durationStr != null)
+                                        {
+                                            var duration = durationStr.ToString();
+                                            int durationOut = 0;
+                                            if (!string.IsNullOrEmpty(duration))
                                             {
-                                                var ageAtVist = visitDate.Year - Convert.ToDateTime(date_of_birth).Year;
-                                                
-                                                var trxAgeObs = new Obs
+                                                var wt = Regex.Match(duration, "\\d+");
+                                                var sts = int.TryParse(duration, out durationOut);
+
+                                                if (durationOut > 0 && sts)
                                                 {
-                                                    concept =((int)TreatmentAge.concept).ToString(),
-                                                    value = ageAtVist > 14? ((int)TreatmentAge.Adult).ToString() : ((int)TreatmentAge.Child).ToString(),
-                                                    groupMembers = new List<Obs>()
-                                                };
-                                                trxAgeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.concept).UuId;
-                                                trxAgeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trxAgeObs.value).UuId;
-                                                pharmacy.obs.Add(trxAgeObs);
-                                            }
+                                                    var durationX = durationOut == 0 ? "30" : durationOut > 180 ? "180" : durationOut.ToString();
 
-                                            var durationStr = reader["duration"];
+                                                    var durationObs = new Obs
+                                                    {
+                                                        concept = ((int)Concepts.MedicationDuration).ToString(),
+                                                        value = durationX,
+                                                        groupMembers = new List<Obs>()
+                                                    };
+                                                    durationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == durationObs.concept).UuId;
+
+                                                    if (!grObs.groupMembers.Any(t => t.concept == durationObs.concept))
+                                                        grObs.groupMembers.Add(durationObs);
+
+                                                    // ------ Quantity of medication prescribed per dose
+                                                    var prescribedObs = new Obs
+                                                    {
+                                                        concept = ((int)Concepts.QuantityPrescribed).ToString(),
+                                                        value = durationX,
+                                                        groupMembers = new List<Obs>()
+                                                    };
+                                                    prescribedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == prescribedObs.concept).UuId;
+
+                                                    if (!grObs.groupMembers.Any(t => t.concept == prescribedObs.concept))
+                                                        grObs.groupMembers.Add(prescribedObs);
+
+                                                    // ------ Medication dispensed
+                                                    var dispensedObs = new Obs
+                                                    {
+                                                        concept = ((int)Concepts.QuantityDispensed).ToString(),
+                                                        value = durationX,
+                                                        groupMembers = new List<Obs>()
+                                                    };
+                                                    dispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dispensedObs.concept).UuId;
+
+                                                    if (!grObs.groupMembers.Any(t => t.concept == dispensedObs.concept))
+                                                        grObs.groupMembers.Add(dispensedObs);
+                                                }
+                                            }
+                                        }
+
+
+                                        if (!pharmacy.obs.Any(t => t.concept == grObs.concept))
+                                            pharmacy.obs.Add(grObs);
+                                    }
+                                    else
+                                    {
+                                        var drgs = drugs.Where(r => (r.NAME.ToLower() + r.STRENGTH) == regimen.ToLower().Replace(" ", string.Empty)).ToList();
+                                        if (drgs.Any())
+                                        {
+                                            var drg = drgs[0];
+                                            var dName = drg.NAME.ToLower();
+
+                                            var oiGrpObs = new Obs
+                                            {
+                                                concept = drg.GROUPINGCONCEPT.ToString(),
+                                                groupMembers = new List<Obs>()
+                                            };
+                                            oiGrpObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiGrpObs.concept).UuId;
+
+                                            var oiDrugObs = new Obs
+                                            {
+                                                concept = drg.OPENMRSQUESTIONCONCEPT.ToString(),
+                                                value = drg.OPENMRSDRUGCONCEPTID.ToString(),
+                                                groupMembers = new List<Obs>()
+                                            };
+                                            oiDrugObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.concept).UuId;
+                                            oiDrugObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.value).UuId;
+
+                                            if (!oiGrpObs.groupMembers.Any(t => t.concept == oiDrugObs.concept))
+                                                oiGrpObs.groupMembers.Add(oiDrugObs);
+
+                                            if (!pharmacy.obs.Any(t => t.concept == oiGrpObs.concept))
+                                                pharmacy.obs.Add(oiGrpObs);
+
+                                            //Treatment type
+                                            var treatmentTyeObs = new Obs
+                                            {
+                                                concept = ((int)TreatmentType.concept).ToString(),
+                                                value = ((int)TreatmentType.Non_ART).ToString(),
+                                                groupMembers = new List<Obs>()
+                                            };
+                                            treatmentTyeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.concept).UuId;
+                                            treatmentTyeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.value).UuId;
+
+                                            if (!pharmacy.obs.Any(t => t.concept == treatmentTyeObs.concept))
+                                                pharmacy.obs.Add(treatmentTyeObs);
+
+                                            var durationStr = ph.duration;
                                             if (durationStr != null)
                                             {
                                                 var duration = durationStr.ToString();
@@ -1803,214 +2016,148 @@ namespace Common
 
                                                         var durationObs = new Obs
                                                         {
-                                                            concept =((int)Concepts.MedicationDuration).ToString(),
+                                                            concept = ((int)Concepts.OIDuration).ToString(),
                                                             value = durationX,
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         durationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == durationObs.concept).UuId;
-                                                        grObs.groupMembers.Add(durationObs);
+
+                                                        if (!oiGrpObs.groupMembers.Any(t => t.concept == durationObs.concept))
+                                                            oiGrpObs.groupMembers.Add(durationObs);
 
                                                         // ------ Quantity of medication prescribed per dose
                                                         var prescribedObs = new Obs
                                                         {
-                                                            concept =((int)Concepts.QuantityPrescribed).ToString(),
+                                                            concept = ((int)Concepts.OIQtyPrescribed).ToString(),
                                                             value = durationX,
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         prescribedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == prescribedObs.concept).UuId;
-                                                        grObs.groupMembers.Add(prescribedObs);
+
+                                                        if (!oiGrpObs.groupMembers.Any(t => t.concept == prescribedObs.concept))
+                                                            oiGrpObs.groupMembers.Add(prescribedObs);
 
                                                         // ------ Medication dispensed
                                                         var dispensedObs = new Obs
                                                         {
-                                                            concept =((int)Concepts.QuantityDispensed).ToString(),
+                                                            concept = ((int)Concepts.OIQtyDispensed).ToString(),
                                                             value = durationX,
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         dispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dispensedObs.concept).UuId;
-                                                        grObs.groupMembers.Add(dispensedObs);
+
+                                                        if (!oiGrpObs.groupMembers.Any(t => t.concept == dispensedObs.concept))
+                                                            oiGrpObs.groupMembers.Add(dispensedObs);
                                                     }
                                                 }
                                             }
-
-                                            var regimenTypeStr = reader["regimentype"];
-                                            var regimenStr = reader["regimen"];
-
-                                            if (regimenTypeStr != null && regimenStr != null)
-                                            {
-                                                var regimenType = regimenTypeStr.ToString().Trim();
-                                                var regimen = regimenStr.ToString().Trim();
-                                                if (!string.IsNullOrEmpty(regimenType) && !string.IsNullOrEmpty(regimen))
-                                                {
-                                                    var rootWord = regimenType.ToLower().Contains("children") ? "Children" : "Adult";
-                                                    var rgs = regimens.Where(r => r.Answers == regimen && r.Values.Contains(rootWord)).ToList();
-                                                    if (rgs.Any())
-                                                    {
-                                                        var rg = rgs[0];
-
-                                                        // Current regimen Line
-                                                        var currentRegLineObs = new Obs
-                                                        {
-                                                            concept =((int)CurrentRegimenLine.concept).ToString(),
-                                                            value = rg.NMRSQuestionConceptID.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
-                                                        currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
-                                                        pharmacy.obs.Add(currentRegLineObs);
-
-                                                        // Regimen
-                                                        var regimenObs = new Obs
-                                                        {
-                                                            concept =rg.NMRSQuestionConceptID.ToString(),
-                                                            value = rg.NMRSAnswerConceptID.ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
-                                                        regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
-                                                        pharmacy.obs.Add(regimenObs);
-
-                                                        //Treatment type
-                                                        var treatmentTyeObs = new Obs
-                                                        {
-                                                            concept = ((int)TreatmentType.concept).ToString(),
-                                                            value = ((int)TreatmentType.AntiretroviralTherapy).ToString(),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        treatmentTyeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.concept).UuId;
-                                                        treatmentTyeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.value).UuId;
-                                                        pharmacy.obs.Add(treatmentTyeObs);
-                                                    }
-                                                    else
-                                                    {
-                                                        var drgs = drugs.Where(r => (r.NAME.ToLower() + r.STRENGTH) == regimen.ToLower().Replace(" ", string.Empty)).ToList();
-                                                        if (drgs.Any())
-                                                        {
-                                                            var drg = drgs[0];                                                       
-                                                            var dName = drg.NAME.ToLower();
-
-                                                            var oiGrpObs = new Obs
-                                                            {
-                                                                concept = drg.GROUPINGCONCEPT.ToString(),
-                                                                groupMembers = new List<Obs>()
-                                                            };
-                                                            oiGrpObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiGrpObs.concept).UuId;
-
-                                                            var oiDrugObs = new Obs
-                                                            {
-                                                                concept = drg.OPENMRSQUESTIONCONCEPT.ToString(),
-                                                                value = drg.OPENMRSDRUGCONCEPTID.ToString(),
-                                                                groupMembers = new List<Obs>()
-                                                            };
-                                                            oiDrugObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.concept).UuId;
-                                                            oiDrugObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == oiDrugObs.value).UuId;
-                                                            oiGrpObs.groupMembers.Add(oiDrugObs);
-                                                            pharmacy.obs.Add(oiGrpObs);                                                            
-
-                                                            //Treatment type
-                                                            var treatmentTyeObs = new Obs
-                                                            {
-                                                                concept = ((int)TreatmentType.concept).ToString(),
-                                                                value = ((int)TreatmentType.Non_ART).ToString(),
-                                                                groupMembers = new List<Obs>()
-                                                            };
-                                                            treatmentTyeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.concept).UuId;
-                                                            treatmentTyeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == treatmentTyeObs.value).UuId;
-                                                            pharmacy.obs.Add(treatmentTyeObs);
-                                                        }
-                                                    }
-
-                                                }
-                                            }
-                                                                                       
-
-                                            //---- Adherence counselling
-                                            var adherence = reader["adherence"];
-                                            if (adherence != null)
-                                            {
-                                                var drugAdherence = adherence.ToString().Trim();
-
-                                                if (!string.IsNullOrEmpty(drugAdherence))
-                                                {
-                                                    int conceptId;
-                                                    switch (drugAdherence.ToLower())
-                                                    {
-                                                        case "1":
-                                                            conceptId = (int)AdherenceCounselling.Yes;
-                                                            break;
-                                                        case "0":
-                                                        default:
-                                                            conceptId = (int)AdherenceCounselling.No;
-                                                            break;
-                                                    }
-
-                                                    var drugAdherenceCounsellingObs = new Obs
-                                                    {
-                                                        concept =((int)AdherenceCounselling.concept).ToString(),
-                                                        value = conceptId.ToString(),
-                                                        groupMembers = new List<Obs>()
-                                                    };
-                                                    drugAdherenceCounsellingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.concept).UuId;
-                                                    drugAdherenceCounsellingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.value).UuId;
-                                                    pharmacy.obs.Add(drugAdherenceCounsellingObs);
-                                                }
-                                            }
-
-                                            // ---- Pick up Reason                                            
-                                            var pickUpReasonObs = new Obs
-                                            {
-                                                concept =((int)PickUpReason.concept).ToString(),
-                                                value = ((int)PickUpReason.Refill).ToString(),
-                                                groupMembers = new List<Obs>()
-                                            };
-                                            pickUpReasonObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.concept).UuId;
-                                            pickUpReasonObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.value).UuId;
-                                            pharmacy.obs.Add(pickUpReasonObs);
-
-                                            //------ Visit Type                                          
-                                            var visitTypeObs = new Obs
-                                            {
-                                                concept =((int)VisitType.concept).ToString(),
-                                                value = ((int)VisitType.ReturnVisitType).ToString(),
-                                                groupMembers = new List<Obs>()
-                                            };
-                                            visitTypeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.concept).UuId;
-                                            visitTypeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.value).UuId;
-                                            pharmacy.obs.Add(visitTypeObs);
-
-                                            //-------- Date ordered                                            
-                                            var dateOrderedObs = new Obs
-                                            {
-                                                concept =((int)Concepts.DateOrdered).ToString(),
-                                                value = visitDate.ToString("yyyy-MM-dd"),
-                                                groupMembers = new List<Obs>()
-                                            };
-                                            dateOrderedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateOrderedObs.concept).UuId;
-                                            pharmacy.obs.Add(dateOrderedObs);
-
-                                            //-------- Date dispensed                                            
-                                            var dateDispensedObs = new Obs
-                                            {
-                                                concept =((int)Concepts.DateDispensed).ToString(),
-                                                value = visitDate.ToString("yyyy-MM-dd"),
-                                                groupMembers = new List<Obs>()
-                                            };
-                                            dateDispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateDispensedObs.concept).UuId;
-                                            pharmacy.obs.Add(dateDispensedObs);
-                                            pharmacy.obs.Add(grObs);
-                                            pharmacies.Add(pharmacy);
                                         }
                                     }
 
                                 }
                             }
+
+                            //---- Adherence counselling
+                            var adherence = ph.adherence;
+                            if (adherence != null)
+                            {
+                                var drugAdherence = adherence.ToString().Trim();
+
+                                if (!string.IsNullOrEmpty(drugAdherence))
+                                {
+                                    int conceptId;
+                                    switch (drugAdherence.ToLower())
+                                    {
+                                        case "1":
+                                            conceptId = (int)AdherenceCounselling.Yes;
+                                            break;
+                                        case "0":
+                                        default:
+                                            conceptId = (int)AdherenceCounselling.No;
+                                            break;
+                                    }
+
+                                    var drugAdherenceCounsellingObs = new Obs
+                                    {
+                                        concept = ((int)AdherenceCounselling.concept).ToString(),
+                                        value = conceptId.ToString(),
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    drugAdherenceCounsellingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.concept).UuId;
+                                    drugAdherenceCounsellingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == drugAdherenceCounsellingObs.value).UuId;
+
+                                    if (!pharmacy.obs.Any(t => t.concept == drugAdherenceCounsellingObs.concept))
+                                        pharmacy.obs.Add(drugAdherenceCounsellingObs);
+                                }
+                            }
+
+                            // ---- Pick up Reason                                            
+                            var pickUpReasonObs = new Obs
+                            {
+                                concept = ((int)PickUpReason.concept).ToString(),
+                                value = ((int)PickUpReason.Refill).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            pickUpReasonObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.concept).UuId;
+                            pickUpReasonObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == pickUpReasonObs.value).UuId;
+
+                            if (!pharmacy.obs.Any(t => t.concept == pickUpReasonObs.concept))
+                                pharmacy.obs.Add(pickUpReasonObs);
+
+                            //------ Visit Type                                          
+                            var visitTypeObs = new Obs
+                            {
+                                concept = ((int)VisitType.concept).ToString(),
+                                value = ((int)VisitType.ReturnVisitType).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            visitTypeObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.concept).UuId;
+                            visitTypeObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == visitTypeObs.value).UuId;
+
+                            if (!pharmacy.obs.Any(t => t.concept == visitTypeObs.concept))
+                                pharmacy.obs.Add(visitTypeObs);
+
+                            //-------- Date ordered                                            
+                            var dateOrderedObs = new Obs
+                            {
+                                concept = ((int)Concepts.DateOrdered).ToString(),
+                                value = visitDate.ToString("yyyy-MM-dd"),
+                                groupMembers = new List<Obs>()
+                            };
+                            dateOrderedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateOrderedObs.concept).UuId;
+
+                            if (!pharmacy.obs.Any(t => t.concept == dateOrderedObs.concept))
+                                pharmacy.obs.Add(dateOrderedObs);
+
+                            //-------- Date dispensed                                            
+                            var dateDispensedObs = new Obs
+                            {
+                                concept = ((int)Concepts.DateDispensed).ToString(),
+                                value = visitDate.ToString("yyyy-MM-dd"),
+                                groupMembers = new List<Obs>()
+                            };
+                            dateDispensedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateDispensedObs.concept).UuId;
+
+                            if (!pharmacy.obs.Any(t => t.concept == dateDispensedObs.concept))
+                            {
+                                pharmacy.obs.Add(dateDispensedObs);
+                            }
+                            else
+                            {
+                                if (pharmacy.obs.Count(t => t.concept == dateDispensedObs.concept) < 2)
+                                    pharmacy.obs.Add(dateDispensedObs);
+                            }
+
+                            if (!pharmacies.Any(d => d.encounterDatetime == pharmacy.encounterDatetime))
+                            {
+                                pharmacies.Add(pharmacy);
+                            }
                         }
                     }
-                }
 
-                var pp = pharmacies.GroupBy(x => x.encounterDatetime).Select(y => y.First()).ToList();
-
-                return pp;
+                });
+                    
+                return pharmacies;
             }
             catch (Exception ex)
             {
@@ -2025,7 +2172,7 @@ namespace Common
             {
                 var labTets = new List<Encounter>();
                                                
-                var labDataList = labData.Where(m => m.patient_id == patientId.ToString()).ToList();
+                var labDataList = labData.Where(m => m.patient_id == patientId).ToList();
                 if (labDataList.Any())
                 {
                     labDataList.ForEach(lab =>
@@ -2410,7 +2557,6 @@ namespace Common
                     // get number of rows and columns in the sheets
                     int rows = worksheet.Dimension.Rows;
                     
-
                     // loop through the worksheet rows and columns
                     for (int i = 2; i <= rows; i++)
                     {
@@ -2461,7 +2607,7 @@ namespace Common
             var labs = new List<LabData>();
             try
             {
-                var path = Path.Combine(rootDir, @"SheetData", @"laboratory.xlsx");
+                var path = Path.Combine(rootDir, @"SheetData", _migOption.LabDataFilePath);
                 FileInfo fileInfo = new FileInfo(path);
                 if(fileInfo.Exists)
                 {
@@ -2495,7 +2641,7 @@ namespace Common
                             labs.Add(new LabData
                             {
                                 laboratory_id = laboratory_id != null ? laboratory_id.ToString() : "",
-                                patient_id = patient_id != null ? patient_id.ToString() : "",
+                                patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
                                 facility_id = facility_id != null ? facility_id.ToString() : "",
                                 date_reported = date_reported != null ? date_reported.ToString() : "",
                                 date_collected = date_collected != null ? date_collected.ToString() : "",
@@ -2525,6 +2671,367 @@ namespace Common
                 Console.WriteLine(message);
                 return labs;
             }
+        }
+        public List<LamisPatient> GetPatientData()
+        {
+            var lamisPatients = new List<LamisPatient>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"SheetData", _migOption.PatientsFilePath);
+                FileInfo fileInfo = new FileInfo(path);
+                if (fileInfo.Exists)
+                {
+                    using (var package = new ExcelPackage(fileInfo))
+                    {
+                        var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                        // get number of rows and columns in the sheets
+                        int rows = worksheet.Dimension.Rows;                      
+
+                        // loop through the worksheet rows and columns
+                        for (int i = 2; i <= rows; i++)
+                        {
+                            var patient_id = worksheet.Cells["A" + i].Value;
+                            var facility_id = worksheet.Cells["B" + i].Value;
+                            var hospital_num = worksheet.Cells["C" + i].Value;
+                            var unique_id = worksheet.Cells["D" + i].Value;
+                            var surname = worksheet.Cells["E" + i].Value;
+                            var other_names = worksheet.Cells["F" + i].Value;
+                            var gender = worksheet.Cells["G" + i].Value;
+                            var date_birth = worksheet.Cells["H" + i].Value;
+                            var age = worksheet.Cells["I" + i].Value;
+                            var age_unit = worksheet.Cells["J" + i].Value;
+                            var marital_status = worksheet.Cells["K" + i].Value;
+                            var education = worksheet.Cells["L" + i].Value;
+                            var occupation = worksheet.Cells["M" + i].Value;
+                            var address = worksheet.Cells["N" + i].Value;
+                            var phone = worksheet.Cells["O" + i].Value;
+                            var state = worksheet.Cells["P" + i].Value;
+                            var lga = worksheet.Cells["Q" + i].Value;
+                            var next_kin = worksheet.Cells["R" + i].Value;
+                            var address_kin = worksheet.Cells["S" + i].Value;
+                            var phone_kin = worksheet.Cells["T" + i].Value;
+                            var relation_kin = worksheet.Cells["U" + i].Value;
+                            var entry_point = worksheet.Cells["V" + i].Value;
+                            var target_group = worksheet.Cells["W" + i].Value;
+                            var date_confirmed_hiv = worksheet.Cells["X" + i].Value;
+                            var date_enrolled_pmtct = worksheet.Cells["Y" + i].Value;
+                            var source_referral = worksheet.Cells["Z" + i].Value;
+                            var time_hiv_diagnosis = worksheet.Cells["AA" + i].Value;
+                            var tb_status = worksheet.Cells["AB" + i].Value;
+                            var pregnant = worksheet.Cells["AC" + i].Value;
+                            var breastfeeding = worksheet.Cells["AD" + i].Value;
+                            var date_registration = worksheet.Cells["AE" + i].Value;
+                            var status_registration = worksheet.Cells["AF" + i].Value;
+                            var enrollment_setting = worksheet.Cells["AG" + i].Value;
+                            var casemanager_id = worksheet.Cells["AH" + i].Value;
+                            var communitypharm_id = worksheet.Cells["AI" + i].Value;
+                            var date_started = worksheet.Cells["AJ" + i].Value;
+                            var current_status = worksheet.Cells["AK" + i].Value;
+                            var date_current_status = worksheet.Cells["AL" + i].Value;
+                            var regimentype = worksheet.Cells["AM" + i].Value;
+                            var regimen = worksheet.Cells["AN" + i].Value;
+                            var last_clinic_stage = worksheet.Cells["AO" + i].Value;
+                            var last_viral_load = worksheet.Cells["AP" + i].Value;
+                            var last_cd4 = worksheet.Cells["AQ" + i].Value;
+                            var last_cd4p = worksheet.Cells["AR" + i].Value;
+                            var date_last_cd4 = worksheet.Cells["AS" + i].Value;
+                            var date_last_viral_load = worksheet.Cells["AT" + i].Value;
+                            var viral_load_due_date = worksheet.Cells["AU" + i].Value;
+                            var viral_load_type = worksheet.Cells["AV" + i].Value;
+                            var date_last_refill = worksheet.Cells["AW" + i].Value;
+                            var date_next_refill = worksheet.Cells["AX" + i].Value;
+                            var last_refill_duration = worksheet.Cells["AY" + i].Value;
+                            var last_refill_setting = worksheet.Cells["AZ" + i].Value;
+                            var date_last_clinic = worksheet.Cells["BA" + i].Value;
+                            var date_next_clinic = worksheet.Cells["BB" + i].Value;
+                            var date_tracked = worksheet.Cells["BC" + i].Value;
+                            var outcome = worksheet.Cells["BD" + i].Value;
+                            var cause_death = worksheet.Cells["BE" + i].Value;
+                            var agreed_date = worksheet.Cells["BF" + i].Value;
+                            var send_message = worksheet.Cells["BG" + i].Value;
+                            var time_stamp = worksheet.Cells["BH" + i].Value;
+                            var uploaded = worksheet.Cells["BI" + i].Value;
+                            var time_uploaded = worksheet.Cells["BJ" + i].Value;
+                            var user_id = worksheet.Cells["BK" + i].Value;
+                            var id_uuid = worksheet.Cells["BL" + i].Value;
+                            var partnerinformation_id = worksheet.Cells["BM" + i].Value;
+                            var hts_id = worksheet.Cells["BN" + i].Value;
+                            var uuid = worksheet.Cells["BO" + i].Value;
+                            var archived = worksheet.Cells["BP" + i].Value;
+
+                            lamisPatients.Add(new LamisPatient
+                            {
+                                patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
+                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                unique_id = unique_id != null ? unique_id.ToString() : "",
+                                surname = surname != null ? surname.ToString() : "",
+                                other_names = other_names != null ? other_names.ToString() : "",
+                                gender = gender != null ? gender.ToString() : "",
+                                date_birth = date_birth != null ? date_birth.ToString() : "",
+                                age = age != null ? age.ToString() : "",
+                                age_unit = age_unit != null ? age_unit.ToString() : "",
+                                marital_status = marital_status != null ? marital_status.ToString() : "",
+                                education = education != null ? education.ToString() : "",
+                                occupation = occupation != null ? occupation.ToString() : "",
+                                address = address != null ? address.ToString() : "",
+                                phone = phone != null ? phone.ToString() : "",
+                                state = state != null ? state.ToString() : "",
+                                lga = lga != null ? lga.ToString() : "",
+                                next_kin = next_kin != null ? next_kin.ToString() : "",
+                                address_kin = address_kin != null ? address_kin.ToString() : "",
+                                phone_kin = phone_kin != null ? phone_kin.ToString() : "",
+                                relation_kin = relation_kin != null ? relation_kin.ToString() : "",
+                                entry_point = entry_point != null ? entry_point.ToString() : "",
+                                target_group = target_group != null ? target_group.ToString() : "",
+                                date_confirmed_hiv = date_confirmed_hiv != null ? date_confirmed_hiv.ToString() : "",
+                                date_enrolled_pmtct = date_enrolled_pmtct != null ? date_enrolled_pmtct.ToString() : "",
+                                source_referral = source_referral != null ? source_referral.ToString() : "",
+                                time_hiv_diagnosis = time_hiv_diagnosis != null ? time_hiv_diagnosis.ToString() : "",
+                                tb_status = tb_status != null ? tb_status.ToString() : "",
+                                pregnant = pregnant != null ? pregnant.ToString() : "",
+                                breastfeeding = breastfeeding != null ? breastfeeding.ToString() : "",
+                                date_registration = date_registration != null ? date_registration.ToString() : "",
+                                status_registration = status_registration != null ? status_registration.ToString() : "",
+                                enrollment_setting = enrollment_setting != null ? enrollment_setting.ToString() : "",
+                                casemanager_id = casemanager_id != null ? casemanager_id.ToString() : "",
+                                communitypharm_id = communitypharm_id != null ? communitypharm_id.ToString() : "",
+                                date_started = date_started != null ? date_started.ToString() : "",
+                                current_status = current_status != null ? current_status.ToString() : "",
+                                date_current_status = date_current_status != null ? date_current_status.ToString() : "",
+                                regimentype = regimentype != null ? regimentype.ToString() : "",
+                                regimen = regimen != null ? regimen.ToString() : "",
+                                last_clinic_stage = last_clinic_stage != null ? last_clinic_stage.ToString() : "",
+                                last_viral_load = last_viral_load != null ? last_viral_load.ToString() : "",
+                                last_cd4 = last_cd4 != null ? last_cd4.ToString() : "",
+                                last_cd4p = last_cd4p != null ? last_cd4p.ToString() : "",
+                                date_last_cd4 = date_last_cd4 != null ? date_last_cd4.ToString() : "",
+                                date_last_viral_load = date_last_viral_load != null ? date_last_viral_load.ToString() : "",
+                                viral_load_due_date = viral_load_due_date != null ? viral_load_due_date.ToString() : "",
+                                viral_load_type = viral_load_type != null ? viral_load_type.ToString() : "",
+                                date_last_refill = date_last_refill != null ? date_last_refill.ToString() : "",
+                                date_next_refill = date_next_refill != null ? date_next_refill.ToString() : "",
+                                last_refill_duration = last_refill_duration != null ? last_refill_duration.ToString() : "",
+                                last_refill_setting = last_refill_setting != null ? last_refill_setting.ToString() : "",
+                                date_last_clinic = date_last_clinic != null ? date_last_clinic.ToString() : "",
+                                date_next_clinic = date_next_clinic != null ? date_next_clinic.ToString() : "",
+                                date_tracked = date_tracked != null ? date_tracked.ToString() : "",
+                                outcome = outcome != null ? outcome.ToString() : "",
+                                cause_death = cause_death != null ? cause_death.ToString() : "",
+                                agreed_date = agreed_date != null ? agreed_date.ToString() : "",
+                                send_message = send_message != null ? send_message.ToString() : "",
+                                time_stamp = time_stamp != null ? time_stamp.ToString() : "",
+                                uploaded = uploaded != null ? uploaded.ToString() : "",
+                                time_uploaded = time_uploaded != null ? time_uploaded.ToString() : "",
+                                user_id = user_id != null ? user_id.ToString() : "",
+                                id_uuid = id_uuid != null ? id_uuid.ToString() : "",
+                                partnerinformation_id = partnerinformation_id != null ? partnerinformation_id.ToString() : "",
+                                hts_id = hts_id != null ? hts_id.ToString() : "",
+                                uuid = uuid != null ? uuid.ToString() : "",
+                                archived = archived != null ? archived.ToString() : ""
+                            });
+                        }
+
+                    }
+                    return lamisPatients;
+                }
+                return new List<LamisPatient>();
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new List<LamisPatient>();
+            }
+        }
+        public List<ClinicData> GetClinicData()
+        {
+            var clinicData = new List<ClinicData>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"SheetData", _migOption.ClinicalsFilePath);
+                FileInfo fileInfo = new FileInfo(path);
+                if (fileInfo.Exists)
+                {
+                    using (var package = new ExcelPackage(fileInfo))
+                    {
+                        var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                        // get number of rows and columns in the sheets
+                        int rows = worksheet.Dimension.Rows;
+
+                        // loop through the worksheet rows and columns
+                        for (int i = 2; i <= rows; i++)
+                        {
+                            var clinic_id = worksheet.Cells["A" + i].Value;
+                            var patient_id = worksheet.Cells["B" + i].Value;
+                            var facility_id = worksheet.Cells["C" + i].Value;
+                            var date_visit = worksheet.Cells["D" + i].Value;
+                            var clinic_stage = worksheet.Cells["E" + i].Value;
+                            var func_status = worksheet.Cells["F" + i].Value;
+                            var tb_status = worksheet.Cells["G" + i].Value;
+                            var viral_load = worksheet.Cells["H" + i].Value;
+                            var cd4 = worksheet.Cells["I" + i].Value;
+                            var cd4p = worksheet.Cells["J" + i].Value;
+                            var regimentype = worksheet.Cells["K" + i].Value;
+                            var regimen = worksheet.Cells["L" + i].Value;
+                            var body_weight = worksheet.Cells["M" + i].Value;
+                            var height = worksheet.Cells["N" + i].Value;
+                            var waist = worksheet.Cells["O" + i].Value;
+                            var bp = worksheet.Cells["P" + i].Value;
+                            var pregnant = worksheet.Cells["Q" + i].Value;
+                            var lmp = worksheet.Cells["R" + i].Value;
+                            var breastfeeding = worksheet.Cells["S" + i].Value;
+                            var oi_screened = worksheet.Cells["T" + i].Value;
+                            var sti_ids = worksheet.Cells["U" + i].Value;
+                            var sti_treated = worksheet.Cells["V" + i].Value;
+                            var oi_ids = worksheet.Cells["W" + i].Value;
+                            var adr_screened = worksheet.Cells["X" + i].Value;
+                            var adr_ids = worksheet.Cells["Y" + i].Value;
+                            var adherence_level = worksheet.Cells["Z" + i].Value;
+                            var adhere_ids = worksheet.Cells["AA" + i].Value;
+                            var commence = worksheet.Cells["AB" + i].Value;
+                            var next_appointment = worksheet.Cells["AC" + i].Value;
+                            var notes = worksheet.Cells["AD" + i].Value;
+                            var time_stamp = worksheet.Cells["AE" + i].Value;
+                            var uploaded = worksheet.Cells["AF" + i].Value;
+                            var time_uploaded = worksheet.Cells["AG" + i].Value;
+                            var user_id = worksheet.Cells["AH" + i].Value;
+                            var gestational_age = worksheet.Cells["AI" + i].Value;
+                            var maternal_status_art = worksheet.Cells["AJ" + i].Value;
+                            var id_uuid = worksheet.Cells["AK" + i].Value;
+                            var uuid = worksheet.Cells["AL" + i].Value;
+                            var deviceconfig_id = worksheet.Cells["AM" + i].Value;
+                            var archived = worksheet.Cells["AN" + i].Value;
+
+                            clinicData.Add(new ClinicData
+                            {
+                                clinic_id = clinic_id != null ? clinic_id.ToString() : "",
+                                patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
+                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                date_visit = date_visit != null ? date_visit.ToString() : "",
+                                clinic_stage = clinic_stage != null ? clinic_stage.ToString() : "",
+                                func_status = func_status != null ? func_status.ToString() : "",
+                                tb_status = tb_status != null ? tb_status.ToString() : "",
+                                viral_load = viral_load != null ? viral_load.ToString() : "",
+                                cd4 = cd4 != null ? cd4.ToString() : "",
+                                cd4p = cd4p != null ? cd4p.ToString() : "",
+                                regimentype = regimentype != null ? regimentype.ToString() : "",
+                                regimen = regimen != null ? regimen.ToString() : "",
+                                body_weight = body_weight != null ? body_weight.ToString() : "",
+                                height = height != null ? height.ToString() : "",
+                                waist = waist != null ? waist.ToString() : "",
+                                bp = bp != null ? bp.ToString() : "",
+                                pregnant = pregnant != null ? pregnant.ToString() : "",
+                                lmp = lmp != null ? lmp.ToString() : "",
+                                breastfeeding = breastfeeding != null ? breastfeeding.ToString() : "",
+                                oi_screened = oi_screened != null ? oi_screened.ToString() : "",
+                                sti_ids = sti_ids != null ? sti_ids.ToString() : "",
+                                sti_treated = sti_treated != null ? sti_treated.ToString() : "",
+                                oi_ids = oi_ids != null ? oi_ids.ToString() : "",
+                                adr_screened = adr_screened != null ? adr_screened.ToString() : "",
+                                adr_ids = adr_ids != null ? adr_ids.ToString() : "",
+                                adherence_level = adherence_level != null ? adherence_level.ToString() : "",
+                                adhere_ids = adhere_ids != null ? adhere_ids.ToString() : "",
+                                commence = commence != null ? commence.ToString() : "",
+                                next_appointment = next_appointment != null ? next_appointment.ToString() : "",
+                                notes = notes != null ? notes.ToString() : "",
+                                time_stamp = time_stamp != null ? time_stamp.ToString() : "",
+                                uploaded = uploaded != null ? uploaded.ToString() : "",
+                                time_uploaded = time_uploaded != null ? time_uploaded.ToString() : "",
+                                user_id = user_id != null ? user_id.ToString() : "",
+                                gestational_age = gestational_age != null ? gestational_age.ToString() : "",
+                                maternal_status_art = maternal_status_art != null ? maternal_status_art.ToString() : "",
+                                id_uuid = id_uuid != null ? id_uuid.ToString() : "",
+                                uuid = uuid != null ? uploaded.ToString() : "",
+                                deviceconfig_id = deviceconfig_id != null ? deviceconfig_id.ToString() : "",
+                                archived = archived != null ? archived.ToString() : ""
+                            });
+                        }
+
+                    }
+                    return clinicData;
+                }
+                return new List<ClinicData>();
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new List<ClinicData>();
+            }
+        }
+        public List<PharmacyData> GetPharmacyData()
+        {
+            var pharmacyData = new List<PharmacyData>();
+            try
+            {
+                var path = Path.Combine(rootDir, @"SheetData", _migOption.PharmacyDataFilePath);
+                FileInfo fileInfo = new FileInfo(path);
+                if (fileInfo.Exists)
+                {
+                    using (var package = new ExcelPackage(fileInfo))
+                    {
+                        var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                        // get number of rows and columns in the sheets
+                        int rows = worksheet.Dimension.Rows;
+
+                        // loop through the worksheet rows and columns
+                        for (int i = 2; i <= rows; i++)
+                        {
+                            var pharmacy_id = worksheet.Cells["A" + i].Value;
+                            var patient_id = worksheet.Cells["B" + i].Value;
+                            var facility_id = worksheet.Cells["C" + i].Value;
+                            var date_visit = worksheet.Cells["D" + i].Value;
+                            var regimen = worksheet.Cells["E" + i].Value;
+                            var regimentype = worksheet.Cells["F" + i].Value;
+                            var duration = worksheet.Cells["G" + i].Value;
+                            var morning = worksheet.Cells["H" + i].Value;
+                            var afternoon = worksheet.Cells["I" + i].Value;
+                            var evening = worksheet.Cells["J" + i].Value;
+                            var adherence = worksheet.Cells["K" + i].Value;
+                            var next_appointment = worksheet.Cells["L" + i].Value;
+                            var time_stamp = worksheet.Cells["M" + i].Value;
+                            
+                            pharmacyData.Add(new PharmacyData
+                            {
+                                pharmacy_id = pharmacy_id != null ? pharmacy_id.ToString() : "",
+                                patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
+                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                date_visit = date_visit != null ? date_visit.ToString() : "",
+                                regimen = regimen != null ? regimen.ToString() : "",
+                                regimentype = regimentype != null ? regimentype.ToString() : "",
+                                duration = duration != null ? duration.ToString() : "",
+                                morning = morning != null ? morning.ToString() : "",
+                                afternoon = afternoon != null ? afternoon.ToString() : "",
+                                evening = evening != null ? evening.ToString() : "",
+                                adherence = adherence != null ? adherence.ToString() : "",
+                                next_appointment = next_appointment != null ? next_appointment.ToString() : "",
+                                time_stamp = time_stamp != null ? time_stamp.ToString() : ""
+                            });
+                        }
+
+                    }
+                    return pharmacyData;
+                }
+                return new List<PharmacyData>();
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new List<PharmacyData>();
+            }
+        }
+        public MigrationReport PushData(List<Patient> patients)
+        {
+            var migratedDataReport = new MigrateData().Migrate(patients);
+            if (migratedDataReport.patients > 0)
+            {
+                migrationReport.patients += migratedDataReport.patients;
+                migrationReport.encounters += migratedDataReport.encounters;
+                migrationReport.visit += migratedDataReport.visit;
+                migrationReport.obs += migratedDataReport.obs;
+            }
+            return migratedDataReport;
         }
     }
 

@@ -25,7 +25,10 @@ namespace LAMIS_NMRS.Utils
         DateDispensed = 164989,
         DateCollected = 159951,
         DateReported = 165414,
-        LabNumber = 165715
+        LabNumber = 165715,
+        OIDuration = 159368,
+        OIQtyPrescribed = 160856,
+        OIQtyDispensed = 1443
     }
 
     public enum ReferredFor
