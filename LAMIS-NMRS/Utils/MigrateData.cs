@@ -21,7 +21,7 @@ namespace LAMIS_NMRS.Utils
             _migOption = migOption;
             var apiUrl = "http://localhost:" +_migOption.NmrsServerPort+ "/openmrs/ws/rest/v1/";
             _migOption.BaseUrl = apiUrl;
-            mysqlconn = "Server=localhost;Database=" + _migOption.NmrsDatabaseName + ";Uid=" + _migOption.NmrsServerUsername + ";Pwd=" + _migOption.NmrsServerPassword + ";";
+            mysqlconn = "Server=localhost;Database=" + _migOption.NmrsDatabaseName + ";Uid=" + _migOption.NmrsWebUsername + ";Pwd=" + _migOption.NmrsWebPassword + ";";
             apiHelper = new APIHelper(_migOption);
             migrationReport = new MigrationReport();
         }
@@ -71,6 +71,35 @@ namespace LAMIS_NMRS.Utils
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine("Pleasse ensure that the correct values for the following variables were provided in the AppSettings.json file:" + Environment.NewLine);
                 Console.WriteLine("nmrs_Database_Name, nmrs_Server_Username, nmrs_Server_Password, nmrs_Server_Port");
+                Console.WriteLine(message + Environment.NewLine);
+                return dxc;
+            }
+        }
+        public List<string> CheckExistingMigration(List<string> identifiers)
+        {
+            var dxc = new List<string>();
+            try
+            {
+                identifiers.ForEach(identifier => 
+                {
+                    var exts = apiHelper.GetData("patient?identifier=" + identifier).Result.results;
+                    if (exts.Any())
+                    {
+                        dxc.Add(exts[0].uuid);
+                    }
+                });               
+
+                return dxc;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                Console.WriteLine("An error was encountered trying to check for previous migration data." + Environment.NewLine);
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Pleasse ensure that the correct values for the following variables were provided in the AppSettings.json file:" + Environment.NewLine);
+                Console.WriteLine("nmrs_Web_Username, nmrs_Web_Password, nmrs_Server_Port");
                 Console.WriteLine(message + Environment.NewLine);
                 return dxc;
             }
@@ -275,15 +304,11 @@ namespace LAMIS_NMRS.Utils
 
                         var personUuid = "";
                         var patientExists = false;
-                        var dy = apiHelper.GetData("patient?identifier=" + p.identifiers[0].identifier).Result;
-                        if(dy != null)
+                        var uuids = apiHelper.GetData("patient?identifier=" + p.identifiers[0].identifier).Result.results;
+                        if (uuids.Any())
                         {
-                            var ll = dy.results.ToList();
-                            if(ll.Any())
-                            {
-                                personUuid = ll[0].uuid;
-                                patientExists = true;
-                            }
+                            personUuid = uuids[0].uuid;
+                            patientExists = true;
                         }
 
                         if(string.IsNullOrEmpty(personUuid))
@@ -368,15 +393,10 @@ namespace LAMIS_NMRS.Utils
                                         });
 
                                         var encounterUuid = "";
-                                        var dy2 = apiHelper.GetData("encounter?todate=" + enc.encounterDatetime + "&patient=" + patientUuid + "&encounterType=" + enc.encounterType + "&fromdate=" + enc.encounterDatetime).Result;
-
-                                        if (dy2 != null)
+                                        var encuuids = apiHelper.GetData("encounter?todate=" + enc.encounterDatetime + "&patient=" + patientUuid + "&encounterType=" + enc.encounterType + "&fromdate=" + enc.encounterDatetime).Result.results;
+                                        if (encuuids.Any())
                                         {
-                                            var excEnc = dy2.results.ToList();
-                                            if (excEnc.Any())
-                                            {
-                                                encounterUuid = excEnc[0].uuid;
-                                            }
+                                            encounterUuid = encuuids[0].uuid;
                                         }
 
                                         if(string.IsNullOrEmpty(encounterUuid))

@@ -38,7 +38,7 @@ namespace Common
             rootDir = Directory.GetCurrentDirectory();
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("Starting Migration. Please don't close this window...." + Environment.NewLine);
+            Console.WriteLine("::: Starting Migration. Please don't close this window :::" + Environment.NewLine);
             BuildPatientInfo();
         }
         public void BuildPatientInfo()
@@ -288,7 +288,7 @@ namespace Common
                 }
                 else
                 {
-                    Console.WriteLine("Data migration completed", Environment.NewLine);
+                    Console.WriteLine("Data migration completed" + Environment.NewLine);
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine(":::: MIGRATION SUMMARY ::::");
                     Console.WriteLine("Total Patients: " + migrationReport.patients.ToString());
@@ -299,13 +299,16 @@ namespace Common
                     Console.WriteLine("Total Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
                     Console.ForegroundColor = ConsoleColor.DarkCyan;
                     Console.WriteLine("** Please evaluate the migration messages and ensure all went well. You can as well re-initiate the migration process to make up for discrepancies observed or migrate corrections made on failed data.", Environment.NewLine);
+                    Console.ForegroundColor = ConsoleColor.White;
                 }
+
                 return;
             }
             catch (Exception ex)
             {
                 var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                Console.WriteLine(message);
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine(Environment.NewLine + message + Environment.NewLine);
                 return;
             }
         }
@@ -3020,13 +3023,28 @@ namespace Common
         {
             if (!migrationChecked)
             {
-                var chkMgg = new MigrateData(_migOption).CheckMigration();
-                if (chkMgg.patients > 0)
+                //Check if migration has been done before to determine if fresh or update migration needs to be conducted at this time
+                //only do this with the first 5 identifiers in this list
+                var identifiers = new List<string>();
+                var cnt = 0;
+                patients.ForEach(id =>
+                {
+                    if (cnt < 5)
+                    {
+                        identifiers.Add(id.identifiers[0].identifier);
+                        cnt += 1;
+                    }
+                });
+
+                var chkMggs = new MigrateData(_migOption).CheckExistingMigration(identifiers);
+
+                if (chkMggs.Any())
                 {
                     migrationHappend = true;
                 }
                 migrationChecked = true;
             }
+
             var migratedDataReport = migrationHappend ? new MigrateData(_migOption).UpdateMigration(patients) : new MigrateData(_migOption).Migrate(patients);
             if (migratedDataReport.patients > 0)
             {

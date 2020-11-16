@@ -180,8 +180,8 @@ namespace LAMIS_NMRS.Models
         public string PharmacyDataFilePath { get; set; }
         public string FaciltyName { get; set; }
         public string FacilityDatim_code { get; set; }
-        public string NmrsServerUsername { get; set; }
-        public string NmrsServerPassword { get; set; }
+        public string NmrsWebUsername { get; set; }
+        public string NmrsWebPassword { get; set; }
         public string NmrsServerPort { get; set; }
         public string BaseUrl { get; set; }
     }
@@ -193,14 +193,23 @@ namespace LAMIS_NMRS.Models
         public int obs { get; set; }
         public int visit { get; set; }
     }
-    
-    public class RefPatient
-    {
 
+    public class ApiGetResponse
+    {
+        public List<Result> results { get; set; }
     }
 
+    public class Result
+    {
+        public string uuid { get; set; }
+        public string display { get; set; }
+        public List<Link> links { get; set; }
+    }
 
-    //pharmacy_id	patient_id	date_visit	regimen	regimentype	duration	morning	afternoon	evening	adherence	next_appointment	time_stamp
+    public class Link
+    {
+        public string rel { get; set; }
+        public string uri { get; set; }
+    }
 
-    //pharmacy_id	patient_id	facility_id	date_visit	duration	morning	afternoon	evening	adr_screened	adr_ids	prescrip_error	adherence	next_appointment	regimentype_id	regimen_id	regimendrug_id	time_stamp	uploaded	time_uploaded	user_id	id_uuid	dmoc_type	uuid	archived
 }

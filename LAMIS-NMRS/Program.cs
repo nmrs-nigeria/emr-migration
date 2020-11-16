@@ -19,8 +19,8 @@ namespace LAMIS_NMRS
             Console.WriteLine("facilty_name");
             Console.WriteLine("facility_datim_code");
             Console.WriteLine("nmrs_Database_Name");
-            Console.WriteLine("nmrs_Server_Username");
-            Console.WriteLine("nmrs_Server_Password");
+            Console.WriteLine("nmrs_Web_Username");
+            Console.WriteLine("nmrs_Web_Password");
             Console.WriteLine("nmrs_Server_Port" + Environment.NewLine);
             Console.WriteLine("This can be done in the AppSettings.json file in this application's root folder.");
 
@@ -64,12 +64,12 @@ namespace LAMIS_NMRS
                        
             migOption.FaciltyName = Utilities.GetAppConfigItem("facilty_name");
             migOption.FacilityDatim_code = Utilities.GetAppConfigItem("facility_datim_code");
-            migOption.NmrsServerUsername = Utilities.GetAppConfigItem("nmrs_Server_Username");
-            migOption.NmrsServerPassword = Utilities.GetAppConfigItem("nmrs_Server_Password");
+            migOption.NmrsWebUsername = Utilities.GetAppConfigItem("nmrs_Web_Username");
+            migOption.NmrsWebPassword = Utilities.GetAppConfigItem("nmrs_Web_Password");
             migOption.NmrsServerPort = Utilities.GetAppConfigItem("nmrs_Server_Port");
             migOption.NmrsDatabaseName = Utilities.GetAppConfigItem("nmrs_Database_Name");
 
-            if (string.IsNullOrEmpty(migOption.FaciltyName) || string.IsNullOrEmpty(migOption.FacilityDatim_code) || string.IsNullOrEmpty(migOption.NmrsServerUsername) || string.IsNullOrEmpty(migOption.NmrsServerPassword) || string.IsNullOrEmpty(migOption.NmrsServerPort) || string.IsNullOrEmpty(migOption.NmrsDatabaseName))
+            if (string.IsNullOrEmpty(migOption.FaciltyName) || string.IsNullOrEmpty(migOption.FacilityDatim_code) || string.IsNullOrEmpty(migOption.NmrsWebUsername) || string.IsNullOrEmpty(migOption.NmrsWebPassword) || string.IsNullOrEmpty(migOption.NmrsServerPort) || string.IsNullOrEmpty(migOption.NmrsDatabaseName))
             {
                 Console.WriteLine(Environment.NewLine + "Some required variables were not provided. Please review the AppSettings.json file and ensure all variables are provided.");
                 return;

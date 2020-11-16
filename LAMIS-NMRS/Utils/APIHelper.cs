@@ -23,7 +23,7 @@ namespace LAMIS_NMRS.Utils
             ApiClient = new HttpClient();
             ApiClient.DefaultRequestHeaders.Authorization =
                new AuthenticationHeaderValue("Basic",
-               Convert.ToBase64String(Encoding.ASCII.GetBytes(_migOption.NmrsServerUsername + ":" + _migOption.NmrsServerPassword)));
+               Convert.ToBase64String(Encoding.ASCII.GetBytes(_migOption.NmrsWebUsername + ":" + _migOption.NmrsWebPassword)));
         }
 
         public async Task<string> PostMessage(string urlPart, string jsonMsg)
@@ -84,31 +84,36 @@ namespace LAMIS_NMRS.Utils
             }
         }
 
-        public async Task<string> GetMessage(string urlPart)
-        {
-            string url = baseDataURL + urlPart;
-            try
-            {
-                var response = await ApiClient.GetAsync(url);
-                return await response.Content.ReadAsStringAsync();
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
-        }
-
-        public async Task<dynamic> GetData(string urlPart)
+        public async Task<ApiGetResponse> GetData(string urlPart)
         {
             try
             {
                 string url = baseDataURL + urlPart;
                 var response = await ApiClient.GetAsync(url);
-                return await response.Content.ReadAsAsync<dynamic>();
+                //return await response.Content.ReadAsAsync<string>();
+                if (response.StatusCode == System.Net.HttpStatusCode.Accepted || response.StatusCode == System.Net.HttpStatusCode.Created || response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    return await response.Content.ReadAsAsync<ApiGetResponse>();
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Error: {0}", Environment.NewLine);
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine("An error was encountered while trying validate existing data:{0}", Environment.NewLine);
+                    Console.WriteLine(await response.Content.ReadAsStringAsync());
+                    return new ApiGetResponse();
+                }
             }
             catch (Exception ex)
             {
-                throw ex;
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                Console.WriteLine("An error was encountered while trying validate existing data:" + Environment.NewLine);
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine(message + Environment.NewLine);
+                return new ApiGetResponse();
             }
         }
 
