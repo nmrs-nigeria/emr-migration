@@ -75,8 +75,6 @@ namespace LAMIS_NMRS.Utils
                 return dxc;
             }
         }
-
-
         public MigrationReport Migrate(List<Patient> patients)
         {
             try
