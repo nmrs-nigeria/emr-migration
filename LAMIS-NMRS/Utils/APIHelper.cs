@@ -1,4 +1,5 @@
 ﻿using Common;
+using LAMIS_NMRS.Models;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -13,14 +14,16 @@ namespace LAMIS_NMRS.Utils
         readonly string baseDataURL;
 
         HttpClient ApiClient = null;
+        MigrationOption _migOption;
 
-        public APIHelper(string baseUrl)
+        public APIHelper(MigrationOption migOption)
         {
-            baseDataURL = baseUrl;
+            _migOption = migOption;
+            baseDataURL = migOption.BaseUrl;
             ApiClient = new HttpClient();
             ApiClient.DefaultRequestHeaders.Authorization =
                new AuthenticationHeaderValue("Basic",
-               Convert.ToBase64String(Encoding.ASCII.GetBytes("admin:Admin123")));
+               Convert.ToBase64String(Encoding.ASCII.GetBytes(_migOption.NmrsServerUsername + ":" + _migOption.NmrsServerPassword)));
         }
 
         public async Task<string> PostMessage(string urlPart, string jsonMsg)

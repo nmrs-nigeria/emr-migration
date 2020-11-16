@@ -16,13 +16,6 @@ namespace Common
 {
     public class DataBuilder
     {
-        //Most used locations:
-        //[{pharmacy : 7f65d926-57d6-4402-ae10-a5b3bcbf7986}, 
-        //{laboratory: 7fdfa2cb-bc95-405a-88c6-32b7673c0453},
-        //{registration: 6351fcf4-e311-4a19-90f9-35667d99a8af}'
-        //{inpatientWard: b1a8b05e-3542-4037-bbd3-998ee9c40574},
-        //{outPatientClinic: 58c57d25-8d39-41ab-8422-108a0c277d98}]
-
         List<Regimen> regimens;
         List<NmrsConcept> nmsConcepts;
         List<Drug> drugs;
@@ -35,6 +28,8 @@ namespace Common
         string rootDir;
         MigrationReport migrationReport;
         int itemsPerPage = 10, pageNumber = 0;
+        bool migrationChecked = false;
+        bool migrationHappend = false;
 
         public DataBuilder(MigrationOption migOption)
         {
@@ -3023,7 +3018,16 @@ namespace Common
         }
         public MigrationReport PushData(List<Patient> patients)
         {
-            var migratedDataReport = new MigrateData().Migrate(patients);
+            if (!migrationChecked)
+            {
+                var chkMgg = new MigrateData(_migOption).CheckMigration();
+                if (chkMgg.patients > 0)
+                {
+                    migrationHappend = true;
+                }
+                migrationChecked = true;
+            }
+            var migratedDataReport = migrationHappend ? new MigrateData(_migOption).UpdateMigration(patients) : new MigrateData(_migOption).Migrate(patients);
             if (migratedDataReport.patients > 0)
             {
                 migrationReport.patients += migratedDataReport.patients;

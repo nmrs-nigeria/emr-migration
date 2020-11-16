@@ -10,6 +10,7 @@
     <PackageReference Include="EPPlus" Version="5.4.1" />
     <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.7" />
     <PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.2.7" />
+    <PackageReference Include="MySql.Data" Version="8.0.22" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="Npgsql" Version="4.1.5" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.2" />

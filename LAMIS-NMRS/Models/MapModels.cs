@@ -35,6 +35,15 @@ namespace LAMIS_NMRS.Models
         public string UuId { get; set; }
     }
 
+    public class MigrationUpdate
+    {
+        public string LastPatient { get; set; }
+        public string LastDate { get; set; }
+        public string LastEncounterType { get; set; }
+        public string LastVisit { get; set; }
+        public string LastPage { get; set; }
+    }
+
     public class ARTModel
     {
         public string VariableName { get; set; }
@@ -174,6 +183,7 @@ namespace LAMIS_NMRS.Models
         public string NmrsServerUsername { get; set; }
         public string NmrsServerPassword { get; set; }
         public string NmrsServerPort { get; set; }
+        public string BaseUrl { get; set; }
     }
 
     public class MigrationReport

@@ -12,12 +12,13 @@ namespace LAMIS_NMRS
             Console.WriteLine(Environment.NewLine);
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Before we begin::" + Environment.NewLine);
-            Console.WriteLine("Please ensure to first provide the correct values for the following items:");
+            Console.WriteLine("Please ensure to first provide the correct values for the following variables:");
             Console.WriteLine("lamis_Database_Name");
             Console.WriteLine("lamis_Server_Username");
             Console.WriteLine("lamis_Server_Password");
             Console.WriteLine("facilty_name");
             Console.WriteLine("facility_datim_code");
+            Console.WriteLine("nmrs_Database_Name");
             Console.WriteLine("nmrs_Server_Username");
             Console.WriteLine("nmrs_Server_Password");
             Console.WriteLine("nmrs_Server_Port" + Environment.NewLine);
@@ -66,6 +67,13 @@ namespace LAMIS_NMRS
             migOption.NmrsServerUsername = Utilities.GetAppConfigItem("nmrs_Server_Username");
             migOption.NmrsServerPassword = Utilities.GetAppConfigItem("nmrs_Server_Password");
             migOption.NmrsServerPort = Utilities.GetAppConfigItem("nmrs_Server_Port");
+            migOption.NmrsDatabaseName = Utilities.GetAppConfigItem("nmrs_Database_Name");
+
+            if (string.IsNullOrEmpty(migOption.FaciltyName) || string.IsNullOrEmpty(migOption.FacilityDatim_code) || string.IsNullOrEmpty(migOption.NmrsServerUsername) || string.IsNullOrEmpty(migOption.NmrsServerPassword) || string.IsNullOrEmpty(migOption.NmrsServerPort) || string.IsNullOrEmpty(migOption.NmrsDatabaseName))
+            {
+                Console.WriteLine(Environment.NewLine + "Some required variables were not provided. Please review the AppSettings.json file and ensure all variables are provided.");
+                return;
+            }
 
             if (option == 1) //migrate from Database
             {
@@ -129,7 +137,6 @@ namespace LAMIS_NMRS
         static string EnterFacilityId()
         {
             // Force user to select either option 1 or 2
-            Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine + "Please enter LAMIS Facility ID (This is the facility primary key from the LAMIS Database):");
             return Console.ReadLine();
         }

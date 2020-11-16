@@ -1,5 +1,7 @@
 ﻿using Common;
 using LAMIS_NMRS.Models;
+using MySql.Data.MySqlClient;
+using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,14 +13,70 @@ namespace LAMIS_NMRS.Utils
     {
         APIHelper apiHelper;
         MigrationReport migrationReport;
+        MigrationOption _migOption;
+        string mysqlconn = "";
 
-        public MigrateData()
+        public MigrateData(MigrationOption migOption)
         {
-            var apiUrl = Utilities.GetAppConfigItem("rest_api");
-            apiHelper = new APIHelper(apiUrl);
+            _migOption = migOption;
+            var apiUrl = "http://localhost:" +_migOption.NmrsServerPort+ "/openmrs/ws/rest/v1/";
+            _migOption.BaseUrl = apiUrl;
+            mysqlconn = "Server=localhost;Database=" + _migOption.NmrsDatabaseName + ";Uid=" + _migOption.NmrsServerUsername + ";Pwd=" + _migOption.NmrsServerPassword + ";";
+            apiHelper = new APIHelper(_migOption);
             migrationReport = new MigrationReport();
         }
-       
+
+        public dynamic CheckMigration()
+        {
+            var dxc = new { patients = 0, encounters = 0 };
+            try
+            {
+                using (var connection = new MySqlConnection(mysqlconn))
+                {
+                    connection.Open();
+                    var q = "select * from"
+                            + "(select count(*) as patients  from patient) as p"
+                            + "cross join"
+                            + "(select count(*) as encounters from encounter) as e";
+
+                    using (MySqlCommand cmd = new MySqlCommand(q, connection))
+                    {
+                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            if (reader.HasRows)
+                            {
+                                while (reader.Read())
+                                {
+                                    var patients = reader["patients"];
+                                    var encounters = reader["encounters"];
+                                    if (patients != null && encounters != null)
+                                    {
+                                        dxc = new { patients = int.Parse(patients.ToString()), encounters = int.Parse(encounters.ToString()) };
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return dxc;
+            }
+            catch(Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                Console.WriteLine("An error was encountered trying to check for previous migration data." + Environment.NewLine);
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Pleasse ensure that the correct values for the following variables were provided in the AppSettings.json file:" + Environment.NewLine);
+                Console.WriteLine("nmrs_Database_Name, nmrs_Server_Username, nmrs_Server_Password, nmrs_Server_Port");
+                Console.WriteLine(message + Environment.NewLine);
+                return dxc;
+            }
+        }
+
+
         public MigrationReport Migrate(List<Patient> patients)
         {
             try
@@ -29,7 +87,6 @@ namespace LAMIS_NMRS.Utils
                     {
                         //migrate person, identifiers, address   
                         var startD = DateTime.Now;
-                        var patientMigrated = 1;
                         var encountersMigrated = 0;
                         var visitsMigrated = 0;
                         var obsCount = 0;
@@ -185,7 +242,7 @@ namespace LAMIS_NMRS.Utils
                 return migrationReport;
             }
         }
-        public MigrationReport UpdateMigrate(List<Patient> patients)
+        public MigrationReport UpdateMigration(List<Patient> patients)
         {
             try
             {
@@ -220,7 +277,7 @@ namespace LAMIS_NMRS.Utils
 
                         var personUuid = "";
                         var patientExists = false;
-                        var dy = apiHelper.GetData("patient?v=default&identifier=" + p.identifiers[0].identifier).Result;
+                        var dy = apiHelper.GetData("patient?identifier=" + p.identifiers[0].identifier).Result;
                         if(dy != null)
                         {
                             var ll = dy.results.ToList();
@@ -313,8 +370,7 @@ namespace LAMIS_NMRS.Utils
                                         });
 
                                         var encounterUuid = "";
-
-                                        var dy2 = apiHelper.GetData("encounter?v=default&todate=" + enc.encounterDatetime + "&patient=" + patientUuid + "&encounterType=" + enc.encounterType + "&fromdate=" + enc.encounterDatetime).Result;
+                                        var dy2 = apiHelper.GetData("encounter?todate=" + enc.encounterDatetime + "&patient=" + patientUuid + "&encounterType=" + enc.encounterType + "&fromdate=" + enc.encounterDatetime).Result;
 
                                         if (dy2 != null)
                                         {
