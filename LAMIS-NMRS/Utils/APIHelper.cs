@@ -117,6 +117,39 @@ namespace LAMIS_NMRS.Utils
             }
         }
 
+        public async Task<dynamic> GetVisitData(string urlPart)
+        {
+            try
+            {
+                string url = baseDataURL + urlPart;
+                var response = await ApiClient.GetAsync(url);
+                //return await response.Content.ReadAsAsync<string>();
+                if (response.StatusCode == System.Net.HttpStatusCode.Accepted || response.StatusCode == System.Net.HttpStatusCode.Created || response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    return await response.Content.ReadAsAsync<dynamic>();
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Error: {0}", Environment.NewLine);
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine("An error was encountered while trying validate existing data:{0}", Environment.NewLine);
+                    Console.WriteLine(await response.Content.ReadAsStringAsync());
+                    return new { };
+                }
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                Console.WriteLine("An error was encountered while trying validate existing data:" + Environment.NewLine);
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine(message + Environment.NewLine);
+                return new{ };
+            }
+        }
+
 
         public async Task<string> Delete(string urlPart)
         {

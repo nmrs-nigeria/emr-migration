@@ -297,9 +297,6 @@ namespace Common
                     Console.WriteLine("Total Obs: " + migrationReport.obs.ToString());
                     var d = (DateTime.Now - startDate).ToString(@"hh\:mm\:ss");
                     Console.WriteLine("Total Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
-                    Console.ForegroundColor = ConsoleColor.DarkCyan;
-                    Console.WriteLine("** Please evaluate the migration messages and ensure all went well. You can as well re-initiate the migration process to make up for discrepancies observed or migrate corrections made on failed data.", Environment.NewLine);
-                    Console.ForegroundColor = ConsoleColor.White;
                 }
 
                 return;
@@ -1345,8 +1342,8 @@ namespace Common
                                         {
                                             var systolicObs = new Obs
                                             {
-                                                concept =((int)BloodPressure.Systolic).ToString(),
-                                                value = bps[0],
+                                                concept = ((int)BloodPressure.Systolic).ToString(),
+                                                value = !string.IsNullOrEmpty(bps[0]) ? bps[0] : "110",
                                                 groupMembers = new List<Obs>()
                                             };
                                             systolicObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == systolicObs.concept).UuId;
@@ -1354,8 +1351,8 @@ namespace Common
 
                                             var outDiastObs = new Obs
                                             {
-                                                concept =((int)BloodPressure.Diastolic).ToString(),
-                                                value = bps[1],
+                                                concept = ((int)BloodPressure.Diastolic).ToString(),
+                                                value = !string.IsNullOrEmpty(bps[1]) ? bps[1] : "70",
                                                 groupMembers = new List<Obs>()
                                             };
                                             outDiastObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == outDiastObs.concept).UuId;
@@ -1476,7 +1473,7 @@ namespace Common
 
                                 if (!string.IsNullOrEmpty(breastfeeding))
                                 {
-                                    if (breastfeeding.ToLower() == "1")
+                                    if (breastfeeding == "1")
                                     {
                                         var pregnObs = new Obs
                                         {

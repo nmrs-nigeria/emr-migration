@@ -184,6 +184,8 @@ namespace LAMIS_NMRS.Models
         public string NmrsWebPassword { get; set; }
         public string NmrsServerPort { get; set; }
         public string BaseUrl { get; set; }
+        public string PartnerShortName { get; set; }
+        public string PartnerFullName { get; set; }
     }
 
     public class MigrationReport
@@ -212,4 +214,17 @@ namespace LAMIS_NMRS.Models
         public string uri { get; set; }
     }
 
+    public class SystemSetting
+    {
+        public string value { get; set; }
+    }
+
+    public class Location
+    {
+        public string name { get; set; }
+
+    }
 }
+
+
+   

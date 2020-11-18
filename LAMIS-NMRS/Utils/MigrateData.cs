@@ -188,11 +188,12 @@ namespace LAMIS_NMRS.Utils
                                     foreach (var enc in encounters)
                                     {
                                         enc.visit = visitUuid;
+                                        enc.encounterDatetime = g.Key;
 
                                         enc.obs.ForEach(ol =>
                                         {
                                             ol.location = enc.location;
-                                            ol.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
+                                            ol.obsDatetime = enc.encounterDatetime;
                                             ol.person = personUuid;
 
                                             if (ol.groupMembers.Any())
@@ -202,7 +203,7 @@ namespace LAMIS_NMRS.Utils
                                                 ol.groupMembers.ForEach(og =>
                                                 {
                                                     og.location = enc.location;
-                                                    og.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
+                                                    og.obsDatetime = enc.encounterDatetime;
                                                     og.person = personUuid;
                                                 });
                                             }
@@ -329,6 +330,10 @@ namespace LAMIS_NMRS.Utils
                             {
                                 patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
                             }
+                            else
+                            {
+                                patientUuid = personUuid;
+                            }
                             
                             if (!string.IsNullOrEmpty(patientUuid))
                             {
@@ -354,15 +359,24 @@ namespace LAMIS_NMRS.Utils
                                         patient = patientUuid
                                     };
 
-                                    var visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
-                                    if (string.IsNullOrEmpty(visitUuid))
-                                    {
-                                        var error = "Clinical Visit failed to migrate. Visit Date: " + g.Key;
-                                        Console.ForegroundColor = ConsoleColor.White;
-                                        Console.WriteLine("Visit migration for patient with ID: {0} {1} {2} at " + visit.startDatetime + " failed with the following message", p.identifiers[0], Environment.NewLine, Environment.NewLine);
+                                    var dv = encounters[0];
+                                    var visitUuid = "";
 
+                                    var vV = apiHelper.GetData("visit?limit=1&startIndex=0&todate=" + g.Key + "&patient=" + patientUuid + "&fromdate=" + g.Key).Result.results;
+                                    if (vV.Any())
+                                    {
+                                        visitUuid = vV[0].uuid;
+                                    }
+                                    else
+                                    {
+                                        visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
+                                    }
+                                    
+                                    if (string.IsNullOrEmpty(visitUuid))
+                                    {                                        
                                         Console.ForegroundColor = ConsoleColor.Red;
-                                        Console.WriteLine(error);
+                                        Console.WriteLine(Environment.NewLine + "The clinical Visit on " + visit.startDatetime + " for patient " + p.identifiers[0].identifier + " failed to be migrated" + Environment.NewLine + Environment.NewLine);
+                                        Console.ForegroundColor = ConsoleColor.White;
                                         continue;
                                     }
 
@@ -372,11 +386,12 @@ namespace LAMIS_NMRS.Utils
                                     foreach (var enc in encounters)
                                     {
                                         enc.visit = visitUuid;
+                                        enc.encounterDatetime = g.Key;
 
                                         enc.obs.ForEach(ol =>
                                         {
                                             ol.location = enc.location;
-                                            ol.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
+                                            ol.obsDatetime = enc.encounterDatetime;
                                             ol.person = personUuid;
 
                                             if (ol.groupMembers.Any())
@@ -386,7 +401,7 @@ namespace LAMIS_NMRS.Utils
                                                 ol.groupMembers.ForEach(og =>
                                                 {
                                                     og.location = enc.location;
-                                                    og.obsDatetime = DateTime.Now.ToString("yyyy-MM-dd");
+                                                    og.obsDatetime = enc.encounterDatetime;
                                                     og.person = personUuid;
                                                 });
                                             }
@@ -463,6 +478,11 @@ namespace LAMIS_NMRS.Utils
                 Console.WriteLine(message + Environment.NewLine);
                 return migrationReport;
             }
+        }
+        public ApiResponse UpdateFacility<T>(string urlPart, T data)
+        {
+            var res = apiHelper.SendData<ApiResponse, T>(urlPart, data).Result;
+            return res;
         }
     }
 }

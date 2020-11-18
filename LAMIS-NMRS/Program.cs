@@ -12,16 +12,15 @@ namespace LAMIS_NMRS
             Console.WriteLine(Environment.NewLine);
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Before we begin::" + Environment.NewLine);
-            Console.WriteLine("Please ensure to first provide the correct values for the following variables:");
-            Console.WriteLine("lamis_Database_Name");
-            Console.WriteLine("lamis_Server_Username");
-            Console.WriteLine("lamis_Server_Password");
-            Console.WriteLine("facilty_name");
-            Console.WriteLine("facility_datim_code");
-            Console.WriteLine("nmrs_Database_Name");
-            Console.WriteLine("nmrs_Web_Username");
-            Console.WriteLine("nmrs_Web_Password");
-            Console.WriteLine("nmrs_Server_Port" + Environment.NewLine);
+            Console.WriteLine(" Please ensure to first provide the correct values for the following variables:" + Environment.NewLine);
+            Console.WriteLine(" *  partner_short_name");
+            Console.WriteLine(" *  partner_full_name");            
+            Console.WriteLine(" *  facilty_name");
+            Console.WriteLine(" *  facility_datim_code");
+            //Console.WriteLine(" *  nmrs_Database_Name");
+            Console.WriteLine(" *  nmrs_Web_Username");
+            Console.WriteLine(" *  nmrs_Web_Password");
+            Console.WriteLine(" *  nmrs_Server_Port" + Environment.NewLine);
             Console.WriteLine("This can be done in the AppSettings.json file in this application's root folder.");
 
             var migOption = new MigrationOption();
@@ -67,16 +66,26 @@ namespace LAMIS_NMRS
             migOption.NmrsWebUsername = Utilities.GetAppConfigItem("nmrs_Web_Username");
             migOption.NmrsWebPassword = Utilities.GetAppConfigItem("nmrs_Web_Password");
             migOption.NmrsServerPort = Utilities.GetAppConfigItem("nmrs_Server_Port");
-            migOption.NmrsDatabaseName = Utilities.GetAppConfigItem("nmrs_Database_Name");
+            //migOption.NmrsDatabaseName = Utilities.GetAppConfigItem("nmrs_Database_Name");
+            migOption.PartnerShortName = Utilities.GetAppConfigItem("partner_short_name");
+            migOption.PartnerFullName = Utilities.GetAppConfigItem("partner_full_name");
 
-            if (string.IsNullOrEmpty(migOption.FaciltyName) || string.IsNullOrEmpty(migOption.FacilityDatim_code) || string.IsNullOrEmpty(migOption.NmrsWebUsername) || string.IsNullOrEmpty(migOption.NmrsWebPassword) || string.IsNullOrEmpty(migOption.NmrsServerPort) || string.IsNullOrEmpty(migOption.NmrsDatabaseName))
+            if (string.IsNullOrEmpty(migOption.FaciltyName) || string.IsNullOrEmpty(migOption.FacilityDatim_code) || string.IsNullOrEmpty(migOption.NmrsWebUsername) || string.IsNullOrEmpty(migOption.NmrsWebPassword) || string.IsNullOrEmpty(migOption.NmrsServerPort)) // || string.IsNullOrEmpty(migOption.NmrsDatabaseName)
             {
                 Console.WriteLine(Environment.NewLine + "Some required variables were not provided. Please review the AppSettings.json file and ensure all variables are provided.");
                 return;
             }
 
+
             if (option == 1) //migrate from Database
             {
+
+                Console.WriteLine(Environment.NewLine + "You have chosen to migrate data from a LAMIS database :::" + Environment.NewLine);
+                Console.WriteLine(" Please ensure that the correct values for the variables listed below are provided in the AppSettings.json file as well:" + Environment.NewLine);
+                Console.WriteLine(" *  lamis_Database_Name");
+                Console.WriteLine(" *  lamis_Server_Username");
+                Console.WriteLine(" *  lamis_Server_Password" + Environment.NewLine);
+
                 #region LAMIS Server Credentials
                 migOption.LamisDatabaseName = Utilities.GetAppConfigItem("lamis_Database_Name");
                 migOption.LamisUsername = Utilities.GetAppConfigItem("lamis_Server_Username");
@@ -93,6 +102,7 @@ namespace LAMIS_NMRS
             {
                 if (option == 2) //Migrate from files
                 {
+                    Console.WriteLine(Environment.NewLine + "You have chosen to Migrate Data from CSV/Excel files :::" + Environment.NewLine);
                     //prompt user to enter PatientDemography File Path
                     Console.WriteLine(Environment.NewLine + "Please paste PatientDemography Data File Path:");
                     migOption.PatientsFilePath = Console.ReadLine();
@@ -119,8 +129,73 @@ namespace LAMIS_NMRS
             {
                 new DataBuilder(migOption);
             }
-        }     
-        
+
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Updating Facility Details..." + Environment.NewLine);
+            Console.ForegroundColor = ConsoleColor.White;
+
+            var migrtr = new MigrateData(migOption);
+
+            //facility Name
+            var facilityName = new SystemSetting
+            {
+                value = migOption.FaciltyName
+            };
+
+            migrtr.UpdateFacility("systemsetting/db0a9be9-b88e-4daf-be8e-fc59887b866f", facilityName);
+
+            //facility datim code
+            var facilityDatimCode = new SystemSetting
+            {
+                value = migOption.FacilityDatim_code
+            };
+            migrtr.UpdateFacility("systemsetting/b857adbc-587f-4791-b1a1-291780703ad1", facilityDatimCode);
+
+            //default location
+            var defaultLocation = new SystemSetting
+            {
+                value = migOption.FaciltyName
+            };
+            migrtr.UpdateFacility("systemsetting/ff16a585-5ea7-4272-838c-ef9241359592", defaultLocation);
+
+            //location
+            var location = new Location
+            {
+                //property = "aff27d58-a15c-49a6-9beb-d30dcfc0c66e", //location id = 8, uuid
+                name = migOption.FaciltyName
+            };
+            migrtr.UpdateFacility("location/aff27d58-a15c-49a6-9beb-d30dcfc0c66e", location);
+
+            if (!string.IsNullOrEmpty(migOption.PartnerShortName))
+            {
+                //partner short name
+                var partnerShortName = new SystemSetting
+                {
+                    value = migOption.PartnerShortName
+                };
+                migrtr.UpdateFacility("systemsetting/6df044cf-e3f3-485d-af21-8f3a7c0e1b98", partnerShortName);
+            }
+
+            if (!string.IsNullOrEmpty(migOption.PartnerFullName))
+            {
+                //partner full name
+                var partnerFullName = new SystemSetting
+                {
+                    value = migOption.PartnerFullName
+                };
+                migrtr.UpdateFacility("systemsetting/bbd6d156-d908-4001-8374-92c4922d2d1d", partnerFullName);
+
+            }
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Completed Updating Facility Details" + Environment.NewLine);
+            Console.WriteLine(Environment.NewLine);
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.WriteLine("** Please evaluate the migration messages and ensure all went well. You can as well re-initiate the migration process to make up for discrepancies observed or migrate corrections made on failed data." + Environment.NewLine);
+            Console.ForegroundColor = ConsoleColor.White;
+        }
+
         static string ChooseMigrationOption()
         {
             // Prompt user to select to either migrate data from CSV or Database
@@ -137,7 +212,7 @@ namespace LAMIS_NMRS
         static string EnterFacilityId()
         {
             // Force user to select either option 1 or 2
-            Console.WriteLine(Environment.NewLine + "Please enter LAMIS Facility ID (This is the facility primary key from the LAMIS Database):");
+            Console.WriteLine(Environment.NewLine + "Please enter the LAMIS ID for this Facility (This is the primary key from the Facility table in the LAMIS Database):");
             return Console.ReadLine();
         }
     }
