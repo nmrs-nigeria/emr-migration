@@ -53,7 +53,7 @@ namespace LAMIS_NMRS.Models
     public class LamisPatient
     {
         public long patient_id { get; set; }
-        public string facility_id { get; set; }
+        public long facility_id { get; set; }
         public string hospital_num { get; set; }
         public string unique_id { get; set; }
         public string surname { get; set; }

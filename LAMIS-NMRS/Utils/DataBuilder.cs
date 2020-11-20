@@ -77,7 +77,7 @@ namespace Common
 
                 pageNumber += 1;
 
-                var pagedData = LamisPatients.OrderBy(p => p.patient_id).Skip((pageNumber - 1) * itemsPerPage).Take(itemsPerPage).ToList();
+                var pagedData = LamisPatients.Where(m => m.facility_id == _migOption.Facility).OrderBy(p => p.patient_id).Skip((pageNumber - 1) * itemsPerPage).Take(itemsPerPage).ToList();
                 pagedData.ForEach(pp =>
                 {
                     var patient = new Patient 
@@ -92,190 +92,159 @@ namespace Common
                     pd.names = new List<PersonName> ();
 
                     DateTime dateOfBirth;
-                    var enrolmentIdStr = pp.hospital_num;
-                    var patient_id = pp.patient_id.ToString();
+                    var enrolmentId = pp.hospital_num;
+                    var patientId = pp.patient_id;
 
-                    if (long.TryParse(patient_id, out long patientId))
+                    if (patientId > 0)
                     {
-                        if (enrolmentIdStr != null)
-                        {
-                            var enrolmentId = enrolmentIdStr.ToString();
 
-                            if (!string.IsNullOrEmpty(enrolmentId))
+                      if (!string.IsNullOrEmpty(enrolmentId))
+                      {
+                            var identifier = new Identifiers
                             {
-                                var identifier = new Identifiers
+                                identifier = enrolmentId,
+                                identifierType = "c82916e4-168c-495f-8ed0-b1b286c30a05", //Pepfar uuid
+                                location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //in-patient ward uuid
+                                preferred = true
+                            };
+                            patient.identifiers.Add(identifier);
+
+                            var dob = pp.date_birth.Trim();
+                            if (!string.IsNullOrEmpty(dob))
+                            {
+                                if (DateTime.TryParse(dob.Trim(), out dateOfBirth))
                                 {
-                                    identifier = enrolmentId,
-                                    identifierType = "c82916e4-168c-495f-8ed0-b1b286c30a05", //Pepfar uuid
-                                    location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //in-patient ward uuid
-                                    preferred = true
+                                    pd.birthdate = dateOfBirth.ToString("yyyy-MM-dd");
+                                }
+                            }                                
+
+                            //Attributes
+                            if (!string.IsNullOrEmpty(pp.phone))
+                            {
+                                var attribute = new PatientAttributes
+                                {
+                                    attributeType = "14d4f066-15f5-102d-96e4-000c29c2a5d7", //Phone number uuid
+                                    value = pp.phone,
                                 };
-                                patient.identifiers.Add(identifier);
-
-                                var dobStr = pp.date_birth;
-                                if (dobStr != null)
-                                {
-                                    var dob = dobStr.ToString().Trim();
-                                    if (!string.IsNullOrEmpty(dob))
-                                    {
-                                        if (DateTime.TryParse(dob.Trim(), out dateOfBirth))
-                                        {
-                                            pd.birthdate = dateOfBirth.ToString("yyyy-MM-dd");
-                                        }
-                                    }
-                                }
-
-                                //Attributes
-                                var phoneStr = pp.phone;
-                                if (phoneStr != null)
-                                {
-                                    if (!string.IsNullOrEmpty(phoneStr.ToString()))
-                                    {
-                                        var attribute = new PatientAttributes
-                                        {
-                                            attributeType = "14d4f066-15f5-102d-96e4-000c29c2a5d7", //Phone number uuid
-                                            value = phoneStr.ToString(),
-                                        };
-                                        //pd.attributes = new List<PatientAttributes> { attribute };
-                                    }
-                                }
-
-                                var givenName = pp.other_names;
-                                var surname = pp.surname;
-                                if (givenName != null && surname != null)
-                                {
-                                    var otherNames = givenName.ToString();
-                                    var familyName = surname.ToString();
-                                    if (!string.IsNullOrEmpty(familyName) && !string.IsNullOrEmpty(otherNames))
-                                    {
-                                        var name = new PersonName
-                                        {
-                                            preferred = true,
-                                            givenName = Utilities.UnscrambleCharacters(otherNames),
-                                            familyName = Utilities.UnscrambleCharacters(familyName)
-                                        };
-
-                                        pd.names.Add(name);
-                                    }
-                                }
-                                var ageStr = pp.age;
-                                if (ageStr != null)
-                                {
-                                    var ageX = ageStr.ToString();
-                                    if (!string.IsNullOrEmpty(ageX))
-                                    {
-                                        if (int.TryParse(ageX, out int age))
-                                        {
-                                            pd.age = age;
-                                        }
-                                    }
-                                }
-
-                                var genderStr = pp.gender;
-                                if (genderStr != null)
-                                {
-                                    var gender = genderStr.ToString().Trim().Replace(" ", string.Empty);
-                                    if (!string.IsNullOrEmpty(gender))
-                                    {
-                                        pd.gender = gender;
-                                    }
-                                }
-
-                                var adr = pp.address;
-                                if (adr != null)
-                                {
-                                    var addres1 = adr.ToString().Trim();
-                                    if (!string.IsNullOrEmpty(addres1))
-                                    {
-                                        var address = new Personaddress
-                                        {
-                                            preferred = true,
-                                            address1 = Utilities.UnscrambleCharacters(addres1),
-                                            country = "Nigeria"
-                                        };
-
-                                        var lgaR = pp.lga;
-                                        if (lgaR != null)
-                                        {
-                                            var lga = lgaR.ToString().Trim();
-                                            if (!string.IsNullOrEmpty(lga))
-                                            {
-                                                address.cityVillage = lga;
-                                            }
-                                        }
-
-                                        var stateR = pp.state;
-                                        if (stateR != null)
-                                        {
-                                            var state = stateR.ToString().Trim();
-                                            if (!string.IsNullOrEmpty(state))
-                                            {
-                                                address.stateProvince = state;
-                                            }
-                                        }
-
-                                        pd.addresses.Add(address);
-                                    }
-                                }
-
-                                patient.person = pd;
-
-                                var artCommencement = BuiildArtCommencement(pp);
-                                if (!string.IsNullOrEmpty(artCommencement.encounterType))
-                                {
-                                    patient.Encounters.Add(artCommencement);
-                                }
-                                var careCardAndVitals = BuildCareCardAndVitals(patientId, dobStr.ToString().Trim());
-                                if (careCardAndVitals.Any())
-                                {
-                                    careCardAndVitals.ForEach(e =>
-                                    {
-                                        if (!string.IsNullOrEmpty(e.encounterType))
-                                        {
-                                            patient.Encounters.Add(e);
-                                        }
-                                    });
-                                }
-
-                                var careTermination = BuildCareTermination(pp);
-                                if (!string.IsNullOrEmpty(careTermination.encounterType))
-                                {
-                                    patient.Encounters.Add(careTermination);
-                                }
-                                var hivEnrolment = BuildHIVEnrolment(pp, pd.gender);
-                                if (!string.IsNullOrEmpty(hivEnrolment.encounterType))
-                                {
-                                    patient.Encounters.Add(hivEnrolment);
-                                }
-
-                                var pharmacies = BuildPharmacy(patientId, dobStr.ToString().Trim());
-                                if (pharmacies.Any())
-                                {
-                                    pharmacies.ForEach(p =>
-                                    {
-                                        if (!string.IsNullOrEmpty(p.encounterType))
-                                        {
-                                            patient.Encounters.Add(p);
-                                        }
-                                    });
-                                }
-
-                                var labInfo = BuildLab(patientId);
-                                if (labInfo.Any())
-                                {
-                                    labInfo.ForEach(l =>
-                                    {
-                                        if (!string.IsNullOrEmpty(l.encounterType))
-                                        {
-                                            patient.Encounters.Add(l);
-                                        }
-                                    });
-                                }
-
-                                patients.Add(patient);
+                                //pd.attributes = new List<PatientAttributes> { attribute };
                             }
-                        }
-                    }                       
+
+
+                            if (!string.IsNullOrEmpty(pp.surname) && !string.IsNullOrEmpty(pp.other_names))
+                            {
+                                var name = new PersonName
+                                {
+                                    preferred = true,
+                                    givenName = Utilities.UnscrambleCharacters(pp.other_names),
+                                    familyName = Utilities.UnscrambleCharacters(pp.surname)
+                                };
+
+                                pd.names.Add(name);
+                            }
+                            if (!string.IsNullOrEmpty(pp.age))
+                            {
+                                if (int.TryParse(pp.age, out int age))
+                                {
+                                    pd.age = age;
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(pp.gender))
+                            {
+                                pd.gender = pp.gender;
+                            }
+
+                            if (!string.IsNullOrEmpty(pp.address))
+                            {
+                                var address = new Personaddress
+                                {
+                                    preferred = true,
+                                    address1 = Utilities.UnscrambleCharacters(pp.address),
+                                    country = "Nigeria"
+                                };
+
+                                var lgaR = pp.lga;
+                                if (lgaR != null)
+                                {
+                                    var lga = lgaR.ToString().Trim();
+                                    if (!string.IsNullOrEmpty(lga))
+                                    {
+                                        address.cityVillage = lga;
+                                    }
+                                }
+
+                                var stateR = pp.state;
+                                if (stateR != null)
+                                {
+                                    var state = stateR.ToString().Trim();
+                                    if (!string.IsNullOrEmpty(state))
+                                    {
+                                        address.stateProvince = state;
+                                    }
+                                }
+
+                                pd.addresses.Add(address);
+                            }
+
+                            patient.person = pd;
+
+                            var artCommencement = BuiildArtCommencement(pp);
+                            if (!string.IsNullOrEmpty(artCommencement.encounterType))
+                            {
+                                patient.Encounters.Add(artCommencement);
+                            }
+                            var careCardAndVitals = BuildCareCardAndVitals(patientId, pp.date_birth.Trim());
+                            if (careCardAndVitals.Any())
+                            {
+                                careCardAndVitals.ForEach(e =>
+                                {
+                                    if (!string.IsNullOrEmpty(e.encounterType))
+                                    {
+                                        patient.Encounters.Add(e);
+                                    }
+                                });
+                            }
+
+                            var careTermination = BuildCareTermination(pp);
+                            if (!string.IsNullOrEmpty(careTermination.encounterType))
+                            {
+                                patient.Encounters.Add(careTermination);
+                            }
+                            var hivEnrolment = BuildHIVEnrolment(pp, pd.gender);
+                            if (!string.IsNullOrEmpty(hivEnrolment.encounterType))
+                            {
+                                patient.Encounters.Add(hivEnrolment);
+                            }
+
+                            var pharmacies = BuildPharmacy(patientId, pp.date_birth.Trim());
+                            if (pharmacies.Any())
+                            {
+                                pharmacies.ForEach(p =>
+                                {
+                                    if (!string.IsNullOrEmpty(p.encounterType))
+                                    {
+                                        patient.Encounters.Add(p);
+                                    }
+                                });
+                            }
+
+                            var labInfo = BuildLab(patientId);
+                            if (labInfo.Any())
+                            {
+                                labInfo.ForEach(l =>
+                                {
+                                    if (!string.IsNullOrEmpty(l.encounterType))
+                                    {
+                                        patient.Encounters.Add(l);
+                                    }
+                                });
+                            }
+
+                            patients.Add(patient);
+
+                       }
+                        
+                    }                      
                                                                         
                 });
                 if (patients.Any())
@@ -341,104 +310,81 @@ namespace Common
                 var date_registration = patient.date_registration;
 
                 DateTime artStartDate;
-                if (date_started != null)
+                if (!string.IsNullOrEmpty(date_started))
                 {
-                    var date_startedStr = date_started.ToString().Trim();
-
-                    if (!string.IsNullOrEmpty(date_startedStr))
+                    if (DateTime.TryParse(date_started.Trim(), out artStartDate))
                     {
-                        if (DateTime.TryParse(date_startedStr.Trim(), out artStartDate))
+                        var artStrs = artcmmtMap.Where(f => f.VariableName == "date_started");
+                        if (artStrs.Any())
                         {
-                            var artStrs = artcmmtMap.Where(f => f.VariableName == "date_started");
-                            if (artStrs.Any())
+                            var artS = artStrs.ElementAt(0);
+                            var fartStartDateObs = new Obs
                             {
-                                var artS = artStrs.ElementAt(0);
-                                var fartStartDateObs = new Obs
-                                {
-                                    concept =artS.OMRSConceptID,
-                                    value = artStartDate.ToString("yyyy-MM-dd"),
-                                    groupMembers = new List<Obs>()
-                                };
-                                fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;                               
-                                artCommencement.obs.Add(fartStartDateObs);
-                            }
+                                concept = artS.OMRSConceptID,
+                                value = artStartDate.ToString("yyyy-MM-dd"),
+                                groupMembers = new List<Obs>()
+                            };
+                            fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;
+                            artCommencement.obs.Add(fartStartDateObs);
                         }
-
                     }
+
                 }
 
-                if (date_registration != null)
+                if (!string.IsNullOrEmpty(date_registration.Trim()))
                 {
-                    var date_registrationStr = date_registration.ToString().Trim();
-
-                    if (!string.IsNullOrEmpty(date_registrationStr))
+                    if (DateTime.TryParse(date_registration.Trim(), out DateTime encDate))
                     {
-                        if (DateTime.TryParse(date_registrationStr.Trim(), out DateTime encDate))
-                        {
-                            artCommencement.encounterDatetime = encDate.ToString("yyyy-MM-dd");
-                        }
-
+                        artCommencement.encounterDatetime = encDate.ToString("yyyy-MM-dd");
                     }
+
                 }
 
-                var date_birthStr = patient.date_birth;
-                if (date_birthStr != null)
+                if (!string.IsNullOrEmpty(date_started.ToString()) && !string.IsNullOrEmpty(patient.date_birth.Trim()))
                 {
-                    var date_birth = date_birthStr.ToString().Trim();
-                    if (!string.IsNullOrEmpty(date_started.ToString()) && !string.IsNullOrEmpty(date_birth))
-                    {
-                        var ageAtStart = Convert.ToDateTime(date_started).Year - Convert.ToDateTime(date_birth).Year;
+                    var ageAtStart = Convert.ToDateTime(date_started).Year - Convert.ToDateTime(patient.date_birth.Trim()).Year;
 
-                        var whoStageObs = new Obs //WHO Stage at start
+                    var whoStageObs = new Obs //WHO Stage at start
+                    {
+                        concept = ((int)WhoStage.concept).ToString(),
+                        value = ageAtStart > 14 ? ((int)WhoStage.adultStage1).ToString() : ((int)WhoStage.paedStage1).ToString(),
+                        groupMembers = new List<Obs>()
+                    };
+                    whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
+                    whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
+                    artCommencement.obs.Add(whoStageObs);
+                }
+
+                if (!string.IsNullOrEmpty(patient.regimentype) && !string.IsNullOrEmpty(patient.regimen))
+                {
+                    var rootWord = patient.regimentype.ToLower().Contains("children") ? "Children" : "Adult";
+                    var rgs = regimens.Where(r => r.Answers == patient.regimen && r.Values.Contains(rootWord)).ToList();
+                    if (rgs.Any())
+                    {
+                        var rg = rgs[0];
+
+                        // Current regimen Line
+                        var currentRegLineObs = new Obs
                         {
-                            concept =((int)WhoStage.concept).ToString(),
-                            value = ageAtStart > 14 ? ((int)WhoStage.adultStage1).ToString() : ((int)WhoStage.paedStage1).ToString(),
+                            concept = ((int)CurrentRegimenLine.concept).ToString(),
+                            value = rg.NMRSQuestionConceptID.ToString(),
                             groupMembers = new List<Obs>()
                         };
-                        whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
-                        whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
-                        artCommencement.obs.Add(whoStageObs);
-                    }
-                }
+                        currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
+                        currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
+                        artCommencement.obs.Add(currentRegLineObs);
 
-                var regimenTypeStr = patient.regimentype;
-                var regimenStr = patient.regimen;
-                if (regimenTypeStr != null && regimenStr != null)
-                {
-                    var regimenType = regimenTypeStr.ToString();
-                    var regimen = regimenStr.ToString();
-
-                    if (!string.IsNullOrEmpty(regimenType) && !string.IsNullOrEmpty(regimen))
-                    {
-                        var rootWord = regimenType.ToLower().Contains("children") ? "Children" : "Adult";
-                        var rgs = regimens.Where(r => r.Answers == regimen && r.Values.Contains(rootWord)).ToList();
-                        if (rgs.Any())
+                        // Regimen
+                        var regimenObs = new Obs
                         {
-                            var rg = rgs[0];
+                            concept = rg.NMRSQuestionConceptID.ToString(),
+                            value = rg.NMRSAnswerConceptID.ToString(),
+                            groupMembers = new List<Obs>()
+                        };
+                        regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
+                        regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
+                        artCommencement.obs.Add(regimenObs);
 
-                            // Current regimen Line
-                            var currentRegLineObs = new Obs
-                            {
-                                concept =((int)CurrentRegimenLine.concept).ToString(),
-                                value = rg.NMRSQuestionConceptID.ToString(),
-                                groupMembers = new List<Obs>()
-                            };
-                            currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
-                            currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
-                            artCommencement.obs.Add(currentRegLineObs);
-
-                            // Regimen
-                            var regimenObs = new Obs
-                            {
-                                concept =rg.NMRSQuestionConceptID.ToString(),
-                                value = rg.NMRSAnswerConceptID.ToString(),
-                                groupMembers = new List<Obs>()
-                            };
-                            regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
-                            regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
-                            artCommencement.obs.Add(regimenObs);
-
-                        }
                     }
                 }
                 return artCommencement;
@@ -459,332 +405,302 @@ namespace Common
                     obs = new List<Obs>()
                 };
 
-                var current_status = patient.current_status;
-                if (current_status != null)
+                if (!string.IsNullOrEmpty(patient.current_status))
                 {
-                    var currentStatus = current_status.ToString().Trim();
-
-                    if (!string.IsNullOrEmpty(currentStatus))
+                    if (patient.current_status != "ART Start" && patient.current_status != "HIV exposed status unknown" && patient.current_status != "ART Transfer In" && patient.current_status != "HIV+ non ART")
                     {
-                        if (currentStatus != "ART Start" && currentStatus != "HIV exposed status unknown" && currentStatus != "ART Transfer In" && currentStatus != "HIV+ non ART")
+                        var exitMap = GetExitMap();
+
+                        if (!string.IsNullOrEmpty(patient.date_current_status.Trim()))
                         {
-                            var exitMap = GetExitMap();
-
-                            var date_current_status = patient.date_current_status;
-                            if (date_current_status != null)
+                            if (DateTime.TryParse(patient.date_current_status.Trim(), out DateTime dExit))
                             {
-                                var dateCurrentStatus = date_current_status.ToString().Trim();
-
-                                if (!string.IsNullOrEmpty(dateCurrentStatus))
+                                var dateExitX = exitMap.Where(f => f.VariableName == "date_current_status");
+                                if (dateExitX.Any())
                                 {
-                                    if (DateTime.TryParse(dateCurrentStatus.Trim(), out DateTime dExit))
+                                    var dateExit = dateExitX.ElementAt(0);
+                                    var dateExitObs = new Obs
                                     {
-                                        var dateExitX = exitMap.Where(f => f.VariableName == "date_current_status");
-                                        if (dateExitX.Any())
+                                        concept = dateExit.OMRSConceptID,
+                                        value = dExit.ToString("yyyy-MM-dd"),
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    dateExitObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateExitObs.concept).UuId;
+                                    careTermination.obs.Add(dateExitObs);
+                                    careTermination.encounterDatetime = dExit.ToString("yyyy-MM-dd");
+
+                                    //Reason for tracking
+                                    var trackingObs = new Obs
+                                    {
+                                        concept = ((int)TrackingReason.concept).ToString(),
+                                        value = ((int)TrackingReason.MissedPharmacyRefill).ToString(), //default
+                                        groupMembers = new List<Obs>()
+                                    };
+                                    trackingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trackingObs.concept).UuId;
+                                    trackingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trackingObs.value).UuId;
+                                    careTermination.obs.Add(trackingObs);
+                                }
+
+                                if (!string.IsNullOrEmpty(patient.date_tracked.Trim()))
+                                {
+                                    if (DateTime.TryParse(patient.date_tracked.Trim(), out DateTime dTract))
+                                    {
+                                        var dTractX = exitMap.Where(f => f.VariableName == "date_tracked");
+                                        if (dTractX.Any())
                                         {
-                                            var dateExit = dateExitX.ElementAt(0);
-                                            var dateExitObs = new Obs
+                                            var dateTrackedX = dateExitX.ElementAt(0);
+                                            var dateTrackedObs = new Obs
                                             {
-                                                concept =dateExit.OMRSConceptID,
-                                                value = dExit.ToString("yyyy-MM-dd"),
+                                                concept = dateTrackedX.OMRSConceptID,
+                                                value = dTract.ToString("yyyy-MM-dd"),
                                                 groupMembers = new List<Obs>()
                                             };
-                                            dateExitObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateExitObs.concept).UuId;
-                                            careTermination.obs.Add(dateExitObs);
-                                            careTermination.encounterDatetime = dExit.ToString("yyyy-MM-dd");
+                                            dateTrackedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTrackedObs.concept).UuId;
+                                            careTermination.obs.Add(dateTrackedObs);
 
-                                            //Reason for tracking
-                                            var trackingObs = new Obs
-                                            {
-                                                concept =((int)TrackingReason.concept).ToString(),
-                                                value = ((int)TrackingReason.MissedPharmacyRefill).ToString(), //default
-                                                groupMembers = new List<Obs>()
-                                            };
-                                            trackingObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trackingObs.concept).UuId;
-                                            trackingObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trackingObs.value).UuId;
-                                            careTermination.obs.Add(trackingObs);
-                                        }
-
-                                        var date_tracked = patient.date_tracked;
-                                        if (date_tracked != null)
-                                        {
-                                            var dateTracked = date_tracked.ToString().Trim();
-
-                                            if (!string.IsNullOrEmpty(dateTracked))
-                                            {
-                                                if (DateTime.TryParse(dateTracked.Trim(), out DateTime dTract))
-                                                {
-                                                    var dTractX = exitMap.Where(f => f.VariableName == "date_tracked");
-                                                    if (dTractX.Any())
-                                                    {
-                                                        var dateTrackedX = dateExitX.ElementAt(0);
-                                                        var dateTrackedObs = new Obs
-                                                        {
-                                                            concept =dateTrackedX.OMRSConceptID,
-                                                            value = dTract.ToString("yyyy-MM-dd"),
-                                                            groupMembers = new List<Obs>()
-                                                        };
-                                                        dateTrackedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTrackedObs.concept).UuId;
-                                                        careTermination.obs.Add(dateTrackedObs);
-
-                                                    }
-                                                }
-
-                                            }
-                                        }
-
-                                        var agreed_date = patient.agreed_date;
-                                        if (agreed_date != null)
-                                        {
-                                            var agreedDate = agreed_date.ToString().Trim();
-
-                                            if (!string.IsNullOrEmpty(agreedDate))
-                                            {
-                                                if (DateTime.TryParse(agreedDate.Trim(), out DateTime dMissed))
-                                                {
-                                                    var dateMissedObs = new Obs
-                                                    {
-                                                        concept =((int)Concepts.DateMissedAppointment).ToString(),
-                                                        value = dMissed.ToString("yyyy-MM-dd"),
-                                                        groupMembers = new List<Obs>()
-                                                    };
-                                                    dateMissedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateMissedObs.concept).UuId;
-                                                    careTermination.obs.Add(dateMissedObs);
-                                                }
-
-                                            }
                                         }
                                     }
 
                                 }
-                            }
 
-                            //LTFU
-                            if (currentStatus == "Lost to Follow Up")
-                            {
-                                var ltfuObs = new Obs
+                                if (!string.IsNullOrEmpty(patient.agreed_date))
                                 {
-                                    concept =((int)LTFU.concept).ToString(),
-                                    value = "true",
-                                    groupMembers = new List<Obs>()
-                                };
-                                ltfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == ltfuObs.concept).UuId;
-                                careTermination.obs.Add(ltfuObs);
-
-                                var reasonLtfuObs = new Obs
-                                {
-                                    concept =((int)ReasonForLTFU.concept).ToString(),
-                                    value = ((int)ReasonForLTFU.Tracked_Not_Located).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                reasonLtfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonLtfuObs.concept).UuId;
-                                reasonLtfuObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonLtfuObs.value).UuId;
-                                careTermination.obs.Add(reasonLtfuObs);
-
-                                var dateLtfuObs = new Obs
-                                {
-                                    concept =((int)Concepts.DateLTFU).ToString(),
-                                    value = careTermination.encounterDatetime,
-                                    groupMembers = new List<Obs>()
-                                };
-                                dateLtfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateLtfuObs.concept).UuId;
-                                careTermination.obs.Add(dateLtfuObs);
-                            }
-
-                            //terminated
-                            if (currentStatus == "ART Transfer Out")
-                            {
-                                var trnsObs = new Obs
-                                {
-                                    concept =((int)PrevExposed.concept).ToString(),
-                                    value = ((int)PrevExposed.Yes).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
-                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
-                                careTermination.obs.Add(trnsObs);
-
-                                var reasonForTerminationObs = new Obs
-                                {
-                                    concept =((int)ReasonForTermination.concept).ToString(),
-                                    value = ((int)ReasonForTermination.Transferred_Out_To_Another_Facility).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
-                                reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
-                                careTermination.obs.Add(reasonForTerminationObs);
-
-                                var dateTerminatedObs = new Obs
-                                {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
-                                    value = careTermination.encounterDatetime,
-                                    groupMembers = new List<Obs>()
-                                };
-                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
-                                careTermination.obs.Add(dateTerminatedObs);
-                            }
-                            if (currentStatus == "Known Death")
-                            {
-                                var trnsObs = new Obs
-                                {
-                                    concept =((int)PrevExposed.concept).ToString(),
-                                    value = ((int)PrevExposed.Yes).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
-                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
-                                careTermination.obs.Add(trnsObs);
-
-                                var reasonForTerminationObs = new Obs
-                                {
-                                    concept =((int)ReasonForTermination.concept).ToString(),
-                                    value = ((int)ReasonForTermination.Death).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
-                                reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
-                                careTermination.obs.Add(reasonForTerminationObs);
-
-                                var cause_death = patient.cause_death;
-                                if (cause_death != null)
-                                {
-                                    var causeDeath = cause_death.ToString().Trim();
-
-                                    if (!string.IsNullOrEmpty(causeDeath))
+                                    if (DateTime.TryParse(patient.agreed_date.Trim(), out DateTime dMissed))
                                     {
-                                        int conceptId;
-                                        switch (causeDeath)
+                                        var dateMissedObs = new Obs
                                         {
-                                            case "HIV disesase resulting in TB":
-                                                conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
-                                                break;
-                                            case "HIV disesase resulting in Cancer":
-                                                conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
-                                                break;
-                                            case "HIV disesase resulting in other infectious and parasitic diseases":
-                                                conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
-                                                break;
-                                            case "Other HIV disease resulting in other disease or conditions leading to death":
-                                                conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
-                                                break;
-                                            case "other natural causes":
-                                                conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
-                                                break;
-                                            case "non-natural causes":
-                                                conceptId = (int)ReasonForDeath.Suspected_ARV_Side_effect;
-                                                break;
-                                            case "unknown cause":
-                                                conceptId = (int)ReasonForDeath.Unknown;
-                                                break;
-                                            default:
-                                                conceptId = (int)ReasonForDeath.Unknown;
-                                                break;
-                                        }
-                                        var causeOfDesthObs = new Obs
-                                        {
-                                            concept =((int)ReasonForDeath.concept).ToString(),
-                                            value = conceptId.ToString(),
+                                            concept = ((int)Concepts.DateMissedAppointment).ToString(),
+                                            value = dMissed.ToString("yyyy-MM-dd"),
                                             groupMembers = new List<Obs>()
                                         };
-                                        causeOfDesthObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == causeOfDesthObs.concept).UuId;
-                                        causeOfDesthObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == causeOfDesthObs.value).UuId;
-                                        careTermination.obs.Add(causeOfDesthObs);
+                                        dateMissedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateMissedObs.concept).UuId;
+                                        careTermination.obs.Add(dateMissedObs);
                                     }
+
                                 }
-
-                                var dateTerminatedObs = new Obs
-                                {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
-                                    value = careTermination.encounterDatetime,
-                                    groupMembers = new List<Obs>()
-                                };
-                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
-                                careTermination.obs.Add(dateTerminatedObs);
-                            }
-                            if (currentStatus == "Stopped Treatment")
-                            {
-                                var trnsObs = new Obs
-                                {
-                                    concept =((int)PrevExposed.concept).ToString(),
-                                    value = ((int)PrevExposed.Yes).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
-                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
-                                careTermination.obs.Add(trnsObs);
-
-                                var reasonForTerminationObs = new Obs
-                                {
-                                    concept =((int)ReasonForTermination.concept).ToString(),
-                                    value = ((int)ReasonForTermination.Discontinued_Care).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
-                                reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
-                                careTermination.obs.Add(reasonForTerminationObs);
-
-                                var reasonDiscontinuedCareObs = new Obs
-                                {
-                                    concept =((int)ReasonDiscontinuedCare.concept).ToString(),
-                                    value = ((int)ReasonDiscontinuedCare.MovedOutOfArea).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                reasonDiscontinuedCareObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonDiscontinuedCareObs.concept).UuId;
-                                reasonDiscontinuedCareObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonDiscontinuedCareObs.value).UuId;
-                                careTermination.obs.Add(reasonDiscontinuedCareObs);
-
-                                var dateTerminatedObs = new Obs
-                                {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
-                                    value = careTermination.encounterDatetime,
-                                    groupMembers = new List<Obs>()
-                                };
-                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
-                                careTermination.obs.Add(dateTerminatedObs);
-                            }
-
-                            //terminated == no
-                            if (currentStatus == "ART Restart")
-                            {
-                                var trnsObs = new Obs
-                                {
-                                    concept =((int)PrevExposed.concept).ToString(),
-                                    value = ((int)PrevExposed.No).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
-                                trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
-                                careTermination.obs.Add(trnsObs);
-
-                                var referredForObs = new Obs
-                                {
-                                    concept =((int)ReferredFor.concept).ToString(),
-                                    value = ((int)ReferredFor.ADHERENCE_COUNSELING).ToString(),
-                                    groupMembers = new List<Obs>()
-                                };
-                                referredForObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == referredForObs.concept).UuId;
-                                referredForObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == referredForObs.value).UuId;
-                                careTermination.obs.Add(referredForObs);
-
-                                var dateTerminatedObs = new Obs
-                                {
-                                    concept =((int)Concepts.DateCareTerminated).ToString(),
-                                    value = careTermination.encounterDatetime,
-                                    groupMembers = new List<Obs>()
-                                };
-                                dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
-                                careTermination.obs.Add(dateTerminatedObs);
-                            }
-
-                            if(careTermination.obs.Any())
-                            {
-                                careTermination.encounterType = "ba6fb85e-8dc3-43e3-a269-59842cd2d364"; //tracking and termination
-                                careTermination.location = "b1a8b05e-3542-4037-bbd3-998ee9c40574"; //using in-patient ward for now
-                                careTermination.form = "5fbc99be-9aeb-4f94-85b0-b2fae88a0ced"; //tracking and termination
-                                //careTermination.provider = "f9badd80-ab76-11e2-9e96-0800200c9a66"; //super user
                             }
 
                         }
+
+                        //LTFU
+                        if (patient.current_status == "Lost to Follow Up")
+                        {
+                            var ltfuObs = new Obs
+                            {
+                                concept = ((int)LTFU.concept).ToString(),
+                                value = "true",
+                                groupMembers = new List<Obs>()
+                            };
+                            ltfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == ltfuObs.concept).UuId;
+                            careTermination.obs.Add(ltfuObs);
+
+                            var reasonLtfuObs = new Obs
+                            {
+                                concept = ((int)ReasonForLTFU.concept).ToString(),
+                                value = ((int)ReasonForLTFU.Tracked_Not_Located).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            reasonLtfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonLtfuObs.concept).UuId;
+                            reasonLtfuObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonLtfuObs.value).UuId;
+                            careTermination.obs.Add(reasonLtfuObs);
+
+                            var dateLtfuObs = new Obs
+                            {
+                                concept = ((int)Concepts.DateLTFU).ToString(),
+                                value = careTermination.encounterDatetime,
+                                groupMembers = new List<Obs>()
+                            };
+                            dateLtfuObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateLtfuObs.concept).UuId;
+                            careTermination.obs.Add(dateLtfuObs);
+                        }
+
+                        //terminated
+                        if (patient.current_status == "ART Transfer Out")
+                        {
+                            var trnsObs = new Obs
+                            {
+                                concept = ((int)PrevExposed.concept).ToString(),
+                                value = ((int)PrevExposed.Yes).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                            trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
+                            careTermination.obs.Add(trnsObs);
+
+                            var reasonForTerminationObs = new Obs
+                            {
+                                concept = ((int)ReasonForTermination.concept).ToString(),
+                                value = ((int)ReasonForTermination.Transferred_Out_To_Another_Facility).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
+                            reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
+                            careTermination.obs.Add(reasonForTerminationObs);
+
+                            var dateTerminatedObs = new Obs
+                            {
+                                concept = ((int)Concepts.DateCareTerminated).ToString(),
+                                value = careTermination.encounterDatetime,
+                                groupMembers = new List<Obs>()
+                            };
+                            dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
+                            careTermination.obs.Add(dateTerminatedObs);
+                        }
+                        if (patient.current_status == "Known Death")
+                        {
+                            var trnsObs = new Obs
+                            {
+                                concept = ((int)PrevExposed.concept).ToString(),
+                                value = ((int)PrevExposed.Yes).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                            trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
+                            careTermination.obs.Add(trnsObs);
+
+                            var reasonForTerminationObs = new Obs
+                            {
+                                concept = ((int)ReasonForTermination.concept).ToString(),
+                                value = ((int)ReasonForTermination.Death).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
+                            reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
+                            careTermination.obs.Add(reasonForTerminationObs);
+
+                            if (!string.IsNullOrEmpty(patient.cause_death))
+                            {
+                                int conceptId;
+                                switch (patient.cause_death)
+                                {
+                                    case "HIV disesase resulting in TB":
+                                        conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
+                                        break;
+                                    case "HIV disesase resulting in Cancer":
+                                        conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
+                                        break;
+                                    case "HIV disesase resulting in other infectious and parasitic diseases":
+                                        conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
+                                        break;
+                                    case "Other HIV disease resulting in other disease or conditions leading to death":
+                                        conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
+                                        break;
+                                    case "other natural causes":
+                                        conceptId = (int)ReasonForDeath.Suspected_Opportunistic_Infection;
+                                        break;
+                                    case "non-natural causes":
+                                        conceptId = (int)ReasonForDeath.Suspected_ARV_Side_effect;
+                                        break;
+                                    case "unknown cause":
+                                        conceptId = (int)ReasonForDeath.Unknown;
+                                        break;
+                                    default:
+                                        conceptId = (int)ReasonForDeath.Unknown;
+                                        break;
+                                }
+                                var causeOfDesthObs = new Obs
+                                {
+                                    concept = ((int)ReasonForDeath.concept).ToString(),
+                                    value = conceptId.ToString(),
+                                    groupMembers = new List<Obs>()
+                                };
+                                causeOfDesthObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == causeOfDesthObs.concept).UuId;
+                                causeOfDesthObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == causeOfDesthObs.value).UuId;
+                                careTermination.obs.Add(causeOfDesthObs);
+                            }
+
+                            var dateTerminatedObs = new Obs
+                            {
+                                concept = ((int)Concepts.DateCareTerminated).ToString(),
+                                value = careTermination.encounterDatetime,
+                                groupMembers = new List<Obs>()
+                            };
+                            dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
+                            careTermination.obs.Add(dateTerminatedObs);
+                        }
+                        if (patient.current_status == "Stopped Treatment")
+                        {
+                            var trnsObs = new Obs
+                            {
+                                concept = ((int)PrevExposed.concept).ToString(),
+                                value = ((int)PrevExposed.Yes).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                            trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
+                            careTermination.obs.Add(trnsObs);
+
+                            var reasonForTerminationObs = new Obs
+                            {
+                                concept = ((int)ReasonForTermination.concept).ToString(),
+                                value = ((int)ReasonForTermination.Discontinued_Care).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            reasonForTerminationObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.concept).UuId;
+                            reasonForTerminationObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonForTerminationObs.value).UuId;
+                            careTermination.obs.Add(reasonForTerminationObs);
+
+                            var reasonDiscontinuedCareObs = new Obs
+                            {
+                                concept = ((int)ReasonDiscontinuedCare.concept).ToString(),
+                                value = ((int)ReasonDiscontinuedCare.MovedOutOfArea).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            reasonDiscontinuedCareObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonDiscontinuedCareObs.concept).UuId;
+                            reasonDiscontinuedCareObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == reasonDiscontinuedCareObs.value).UuId;
+                            careTermination.obs.Add(reasonDiscontinuedCareObs);
+
+                            var dateTerminatedObs = new Obs
+                            {
+                                concept = ((int)Concepts.DateCareTerminated).ToString(),
+                                value = careTermination.encounterDatetime,
+                                groupMembers = new List<Obs>()
+                            };
+                            dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
+                            careTermination.obs.Add(dateTerminatedObs);
+                        }
+
+                        //terminated == no
+                        if (patient.current_status == "ART Restart")
+                        {
+                            var trnsObs = new Obs
+                            {
+                                concept = ((int)PrevExposed.concept).ToString(),
+                                value = ((int)PrevExposed.No).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            trnsObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.concept).UuId;
+                            trnsObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == trnsObs.value).UuId;
+                            careTermination.obs.Add(trnsObs);
+
+                            var referredForObs = new Obs
+                            {
+                                concept = ((int)ReferredFor.concept).ToString(),
+                                value = ((int)ReferredFor.ADHERENCE_COUNSELING).ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            referredForObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == referredForObs.concept).UuId;
+                            referredForObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == referredForObs.value).UuId;
+                            careTermination.obs.Add(referredForObs);
+
+                            var dateTerminatedObs = new Obs
+                            {
+                                concept = ((int)Concepts.DateCareTerminated).ToString(),
+                                value = careTermination.encounterDatetime,
+                                groupMembers = new List<Obs>()
+                            };
+                            dateTerminatedObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == dateTerminatedObs.concept).UuId;
+                            careTermination.obs.Add(dateTerminatedObs);
+                        }
+
+                        if (careTermination.obs.Any())
+                        {
+                            careTermination.encounterType = "ba6fb85e-8dc3-43e3-a269-59842cd2d364"; //tracking and termination
+                            careTermination.location = "b1a8b05e-3542-4037-bbd3-998ee9c40574"; //using in-patient ward for now
+                            careTermination.form = "5fbc99be-9aeb-4f94-85b0-b2fae88a0ced"; //tracking and termination
+                                                                                           //careTermination.provider = "f9badd80-ab76-11e2-9e96-0800200c9a66"; //super user
+                        }
+
                     }
                 }
                 return !string.IsNullOrEmpty(careTermination.encounterType)? careTermination : new Encounter();
@@ -1274,15 +1190,15 @@ namespace Common
 
                 if (!clinicData.Any())
                 {
-                    Console.WriteLine("WARNING: Clinic data List could not be retrieved. Clinicals not migrated");
+                    Console.WriteLine("WARNING: Clinic data List could not be retrieved. Clinicals will not not migrated for all patients");
                     return vitalCare;
                 }
 
-                var patientClinicals = clinicData.Where(c => c.patient_id == patientId).ToList();
+                var patientClinicals = clinicData.Where(c => c.patient_id == patientId && c.facility_id == _migOption.Facility).ToList();
 
                 if (!patientClinicals.Any())
                 {
-                    Console.WriteLine("WARNING: Patient's Clinical data list is empty. Clinicals not migrated");
+                    Console.WriteLine("WARNING: Patient's Clinical data list is empty. Clinicals will not be migrated for patient");
                     return vitalCare;
                 }
 
@@ -1343,7 +1259,7 @@ namespace Common
                                             var systolicObs = new Obs
                                             {
                                                 concept = ((int)BloodPressure.Systolic).ToString(),
-                                                value = !string.IsNullOrEmpty(bps[0]) ? bps[0] : "110",
+                                                value = !string.IsNullOrEmpty(bps[0]) ? int.Parse(bps[0]) > 250? "250": bps[0] : "110",
                                                 groupMembers = new List<Obs>()
                                             };
                                             systolicObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == systolicObs.concept).UuId;
@@ -1352,7 +1268,7 @@ namespace Common
                                             var outDiastObs = new Obs
                                             {
                                                 concept = ((int)BloodPressure.Diastolic).ToString(),
-                                                value = !string.IsNullOrEmpty(bps[1]) ? bps[1] : "70",
+                                                value = !string.IsNullOrEmpty(bps[1]) ? int.Parse(bps[1]) > 150 ? "150" : bps[1] : "70",
                                                 groupMembers = new List<Obs>()
                                             };
                                             outDiastObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == outDiastObs.concept).UuId;
@@ -1760,20 +1676,20 @@ namespace Common
             var pharmacies = new List<Encounter>();
             try
             {
-                if (!pharmacyDataList.Any())
+                if (pharmacyDataList == null)
                     pharmacyDataList = GetPharmacyData();
 
                 if (!pharmacyDataList.Any())
                 {
-                    Console.WriteLine("WARNING: Patient's Pharmacy data list is empty. Pharmacy data not migrated");
+                    Console.WriteLine("WARNING: Pharmacy data list is empty. Pharmacy data will not be migrated for all Patients");
                     return pharmacies;
                 }
 
-                var patientPharmacies = pharmacyDataList.Where(c => c.patient_id == patientId).ToList();
+                var patientPharmacies = pharmacyDataList.Where(c => c.patient_id == patientId && c.facility_id == _migOption.Facility).ToList();
 
                 if (!patientPharmacies.Any())
                 {
-                    Console.WriteLine("WARNING: Patient's Pharmacy data list is empty. Pharmacy not migrated");
+                    Console.WriteLine("WARNING: Patient's Pharmacy data list is empty. Patient's Pharmacy not will not be migrated");
                     return pharmacies;
                 }
 
@@ -2166,8 +2082,17 @@ namespace Common
             try
             {
                 var labTets = new List<Encounter>();
+
+                if (labData == null)
+                    labData = GetLabData();
+
+                if (!labData.Any())
+                {
+                    Console.WriteLine("WARNING: Laboratory data list is empty. Laboratory data will not be migrated for all patients");
+                    return labTets;
+                }            
                                                
-                var labDataList = labData.Where(m => m.patient_id == patientId).ToList();
+                var labDataList = labData.Where(m => m.patient_id == patientId && m.facility_id == _migOption.Facility).ToList();
                 if (labDataList.Any())
                 {
                     labDataList.ForEach(lab =>
@@ -2602,7 +2527,7 @@ namespace Common
             var labs = new List<LabData>();
             try
             {
-                var path = Path.Combine(rootDir, @"SheetData", _migOption.LabDataFilePath);
+                var path = _migOption.LabDataFilePath;
                 FileInfo fileInfo = new FileInfo(path);
                 if(fileInfo.Exists)
                 {
@@ -2637,7 +2562,7 @@ namespace Common
                             {
                                 laboratory_id = laboratory_id != null ? laboratory_id.ToString() : "",
                                 patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
-                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                facility_id = facility_id != null ? long.Parse(facility_id.ToString()) : 0,
                                 date_reported = date_reported != null ? date_reported.ToString() : "",
                                 date_collected = date_collected != null ? date_collected.ToString() : "",
                                 labno = labno != null ? labno.ToString() : "",
@@ -2672,7 +2597,7 @@ namespace Common
             var lamisPatients = new List<LamisPatient>();
             try
             {
-                var path = Path.Combine(rootDir, @"SheetData", _migOption.PatientsFilePath);
+                var path = _migOption.PatientsFilePath;
                 FileInfo fileInfo = new FileInfo(path);
                 if (fileInfo.Exists)
                 {
@@ -2757,7 +2682,8 @@ namespace Common
                             lamisPatients.Add(new LamisPatient
                             {
                                 patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
-                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                facility_id = facility_id != null ? long.Parse(facility_id.ToString()) : 0,
+                                hospital_num = hospital_num != null ? hospital_num.ToString() : "",
                                 unique_id = unique_id != null ? unique_id.ToString() : "",
                                 surname = surname != null ? surname.ToString() : "",
                                 other_names = other_names != null ? other_names.ToString() : "",
@@ -2843,7 +2769,7 @@ namespace Common
             var clinicData = new List<ClinicData>();
             try
             {
-                var path = Path.Combine(rootDir, @"SheetData", _migOption.ClinicalsFilePath);
+                var path = _migOption.ClinicalsFilePath;
                 FileInfo fileInfo = new FileInfo(path);
                 if (fileInfo.Exists)
                 {
@@ -2901,7 +2827,7 @@ namespace Common
                             {
                                 clinic_id = clinic_id != null ? clinic_id.ToString() : "",
                                 patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
-                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                facility_id = facility_id != null ? long.Parse(facility_id.ToString()) :0,
                                 date_visit = date_visit != null ? date_visit.ToString() : "",
                                 clinic_stage = clinic_stage != null ? clinic_stage.ToString() : "",
                                 func_status = func_status != null ? func_status.ToString() : "",
@@ -2936,7 +2862,7 @@ namespace Common
                                 gestational_age = gestational_age != null ? gestational_age.ToString() : "",
                                 maternal_status_art = maternal_status_art != null ? maternal_status_art.ToString() : "",
                                 id_uuid = id_uuid != null ? id_uuid.ToString() : "",
-                                uuid = uuid != null ? uploaded.ToString() : "",
+                                uuid = uuid != null ? uuid.ToString() : "",
                                 deviceconfig_id = deviceconfig_id != null ? deviceconfig_id.ToString() : "",
                                 archived = archived != null ? archived.ToString() : ""
                             });
@@ -2959,7 +2885,7 @@ namespace Common
             var pharmacyData = new List<PharmacyData>();
             try
             {
-                var path = Path.Combine(rootDir, @"SheetData", _migOption.PharmacyDataFilePath);
+                var path = _migOption.PharmacyDataFilePath;
                 FileInfo fileInfo = new FileInfo(path);
                 if (fileInfo.Exists)
                 {
@@ -2985,23 +2911,23 @@ namespace Common
                             var adherence = worksheet.Cells["K" + i].Value;
                             var next_appointment = worksheet.Cells["L" + i].Value;
                             var time_stamp = worksheet.Cells["M" + i].Value;
-                            
-                            pharmacyData.Add(new PharmacyData
-                            {
-                                pharmacy_id = pharmacy_id != null ? pharmacy_id.ToString() : "",
-                                patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
-                                facility_id = facility_id != null ? facility_id.ToString() : "",
-                                date_visit = date_visit != null ? date_visit.ToString() : "",
-                                regimen = regimen != null ? regimen.ToString() : "",
-                                regimentype = regimentype != null ? regimentype.ToString() : "",
-                                duration = duration != null ? duration.ToString() : "",
-                                morning = morning != null ? morning.ToString() : "",
-                                afternoon = afternoon != null ? afternoon.ToString() : "",
-                                evening = evening != null ? evening.ToString() : "",
-                                adherence = adherence != null ? adherence.ToString() : "",
-                                next_appointment = next_appointment != null ? next_appointment.ToString() : "",
-                                time_stamp = time_stamp != null ? time_stamp.ToString() : ""
-                            });
+
+                            var phd = new PharmacyData();
+                            phd.pharmacy_id = pharmacy_id != null ? pharmacy_id.ToString() : "";
+                            phd.patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0;
+                            phd.facility_id = facility_id != null ? long.Parse(facility_id.ToString()) : 0;
+                            phd.date_visit = date_visit != null ? date_visit.ToString() : "";
+                            phd.regimen = regimen != null ? regimen.ToString() : "";
+                            phd.regimentype = regimentype != null ? regimentype.ToString() : "";
+                            phd.duration = duration != null ? duration.ToString() : "";
+                            phd.morning = morning != null ? morning.ToString() : "";
+                            phd.afternoon = afternoon != null ? afternoon.ToString() : "";
+                            phd.evening = evening != null ? evening.ToString() : "";
+                            phd.adherence = adherence != null ? adherence.ToString() : "";
+                            phd.next_appointment = next_appointment != null ? next_appointment.ToString() : "";
+                            phd.time_stamp = time_stamp != null ? time_stamp.ToString() : "";
+
+                            pharmacyData.Add(phd);
                         }
 
                     }

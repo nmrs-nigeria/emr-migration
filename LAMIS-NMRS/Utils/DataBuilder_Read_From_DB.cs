@@ -1334,14 +1334,14 @@ namespace Common
                                                 {
                                                     if (bp != "/")
                                                     {
-                                                        //"110/70"
+                                                        //Example: "110/70"
                                                         var bps = bp.Split('/');
                                                         if (bps.Length > 1)
                                                         {
                                                             var systolicObs = new Obs
                                                             {
-                                                                concept =((int)BloodPressure.Systolic).ToString(),
-                                                                value = !string.IsNullOrEmpty(bps[0]) ? bps[0] : "110",
+                                                                concept = ((int)BloodPressure.Systolic).ToString(),
+                                                                value = !string.IsNullOrEmpty(bps[0]) ? int.Parse(bps[0]) > 250 ? "250" : bps[0] : "110",
                                                                 groupMembers = new List<Obs>()
                                                             };
                                                             systolicObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == systolicObs.concept).UuId;
@@ -1349,8 +1349,8 @@ namespace Common
 
                                                             var outDiastObs = new Obs
                                                             {
-                                                                concept =((int)BloodPressure.Diastolic).ToString(),
-                                                                value = !string.IsNullOrEmpty(bps[1])? bps[1]: "70",
+                                                                concept = ((int)BloodPressure.Diastolic).ToString(),
+                                                                value = !string.IsNullOrEmpty(bps[1]) ? int.Parse(bps[1]) > 150 ? "150" : bps[1] : "70",
                                                                 groupMembers = new List<Obs>()
                                                             };
                                                             outDiastObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == outDiastObs.concept).UuId;
@@ -1766,7 +1766,7 @@ namespace Common
                 {
                     connection.Open();
                     
-                    var q = "select pharmacy_id,patient_id,date_visit, r.description as regimen, rt.description as regimentype,duration,morning,afternoon,evening,adherence,next_appointment,time_stamp from (select * from pharmacy where patient_id = " + patientId + " and facility_id = " + _migOption.Facility + ") as p join (select * from regimen) r on p.regimen_id = r.regimen_id join (select * from regimentype) rt on p.regimentype_id = rt.regimentype_id";
+                    var q = "select pharmacy_id,patient_id,facility_id,date_visit, r.description as regimen, rt.description as regimentype,duration,morning,afternoon,evening,adherence,next_appointment,time_stamp from (select * from pharmacy where patient_id = " + patientId + " and facility_id = " + _migOption.Facility + ") as p join (select * from regimen) r on p.regimen_id = r.regimen_id join (select * from regimentype) rt on p.regimentype_id = rt.regimentype_id";
 
                     using (NpgsqlCommand cmd = new NpgsqlCommand(q, connection))
                     {
@@ -2644,7 +2644,7 @@ namespace Common
                                             {
                                                 laboratory_id = laboratory_id != null ? laboratory_id.ToString() : "",
                                                 patient_id = patient_id != null ? long.Parse(patient_id.ToString()) : 0,
-                                                facility_id = facility_id != null ? facility_id.ToString() : "",
+                                                facility_id = facility_id != null ? long.Parse(facility_id.ToString()) : 0,
                                                 date_reported = date_reported != null ? date_reported.ToString() : "",
                                                 date_collected = dateCollected.ToString("yyyy-MM-dd"),
                                                 labno = labno != null ? labno.ToString() : "",

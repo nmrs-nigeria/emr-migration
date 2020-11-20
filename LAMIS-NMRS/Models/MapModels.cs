@@ -75,7 +75,7 @@ namespace LAMIS_NMRS.Models
     {
         public string laboratory_id { get; set; }
         public long patient_id { get; set; }
-        public string facility_id { get; set; }
+        public long facility_id { get; set; }
         public string date_reported { get; set; }
         public string date_collected { get; set; }
         public string labno { get; set; }
@@ -96,7 +96,7 @@ namespace LAMIS_NMRS.Models
     {
         public string clinic_id { get; set; }
         public long patient_id { get; set; }
-        public string facility_id { get; set; }
+        public long facility_id { get; set; }
         public string date_visit { get; set; }
         public string clinic_stage { get; set; }
         public string func_status { get; set; }
@@ -140,7 +140,7 @@ namespace LAMIS_NMRS.Models
     {
         public string pharmacy_id { get; set; }
         public long patient_id { get; set; }
-        public string facility_id { get; set; }
+        public long facility_id { get; set; }
         public string date_visit { get; set; }
         public string duration { get; set; }
         public string morning { get; set; }
