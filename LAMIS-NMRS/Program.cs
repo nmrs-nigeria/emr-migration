@@ -111,13 +111,13 @@ namespace LAMIS_NMRS
                         Console.WriteLine(" *  lab_Data_File_Path");
                         Console.WriteLine(" *  pharmacy_Data_File_Path" + Environment.NewLine);
 
-                        migOption.PatientsFilePath = Utilities.GetAppConfigItem("patients_Data_File_Path").Replace("\\\\", "\\");
+                        migOption.PatientsFilePath = Utilities.GetAppConfigItem("patients_Data_File_Path");
 
-                        migOption.ClinicalsFilePath = Utilities.GetAppConfigItem("clinic_Data_File_Path").Replace("\\\\", "\\");
+                        migOption.ClinicalsFilePath = Utilities.GetAppConfigItem("clinic_Data_File_Path");
 
-                        migOption.LabDataFilePath = Utilities.GetAppConfigItem("lab_Data_File_Path").Replace("\\\\", "\\");
+                        migOption.LabDataFilePath = Utilities.GetAppConfigItem("lab_Data_File_Path");
 
-                        migOption.PharmacyDataFilePath = Utilities.GetAppConfigItem("pharmacy_Data_File_Path").Replace("\\\\", "\\");
+                        migOption.PharmacyDataFilePath = Utilities.GetAppConfigItem("pharmacy_Data_File_Path");
 
                         if (string.IsNullOrEmpty(migOption.PatientsFilePath) || string.IsNullOrEmpty(migOption.ClinicalsFilePath) || string.IsNullOrEmpty(migOption.LabDataFilePath) || string.IsNullOrEmpty(migOption.PharmacyDataFilePath))
                         {
