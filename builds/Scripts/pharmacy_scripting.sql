@@ -1,0 +1,1 @@
+select pharmacy_id,patient_id,facility_id,date_visit, r.description as regimen, rt.description as regimentype,duration,morning,afternoon,evening,adherence,next_appointment,time_stamp from (select * from pharmacy where facility_id = 3109) as p join (select * from regimen) r on p.regimen_id = r.regimen_id join (select * from regimentype) rt on p.regimentype_id = rt.regimentype_id
