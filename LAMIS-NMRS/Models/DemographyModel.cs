@@ -34,7 +34,6 @@ namespace LAMIS_NMRS.Models
     {
         public string attributeType { get; set; }
         public string value { get; set; }
-        public string hydratedObject { get; set; }
     }
     
     public class Patient
@@ -42,6 +41,8 @@ namespace LAMIS_NMRS.Models
         public PatientDemography person { get; set; }
         public List<Identifiers> identifiers { get; set; }
         public List<Encounter> Encounters { get; set; }
+        public PatientProgram PatientProgram { get; set; }
+        public List<PatientAttributes> attributes { get; set; }
     }
 
     public class PatientInfo
@@ -134,13 +135,14 @@ namespace LAMIS_NMRS.Models
     public class PatientProgram
     {
         public string patient { get; set; } //uuid
-        public string program = "9083deaa-f37f-44b3-9046-b87b134711a1"; //uuid
+        public string program = "9083deaa-f37f-44b3-9046-b87b134711a1"; //HIV Treatment Services
         public string dateEnrolled { get; set; }
-        public string location { get; set; } //= "7f65d926-57d6-4402-ae10-a5b3bcbf7986";
+        public string dateCompleted { get; set; }
+        public string location = "6351fcf4-e311-4a19-90f9-35667d99a8af"; //Registration Desk
         public bool voided = false;
     }
 
-    public class PersonName
+public class PersonName
     {
         public bool preferred = true;
         public string givenName { get; set; }

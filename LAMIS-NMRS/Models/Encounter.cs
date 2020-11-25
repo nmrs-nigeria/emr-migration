@@ -13,7 +13,7 @@ namespace LAMIS_NMRS.Models
         public string encounterDatetime { get; set; }
         public string location { get; set; }  //"7f65d926-57d6-4402-ae10-a5b3bcbf7986";
         public string form { get; set; } //uuid
-        //public string provider { get; set; }
+        public string provider { get; set; }//uuid
         public List<Obs> obs { get; set; }
         public string visit { get; set; }
     }

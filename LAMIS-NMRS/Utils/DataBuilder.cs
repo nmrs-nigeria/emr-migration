@@ -124,9 +124,9 @@ namespace Common
                                 var attribute = new PatientAttributes
                                 {
                                     attributeType = "14d4f066-15f5-102d-96e4-000c29c2a5d7", //Phone number uuid
-                                    value = pp.phone,
+                                    value = Utilities.UnscrambleNumbers(pp.phone),
                                 };
-                                //pd.attributes = new List<PatientAttributes> { attribute };
+                                patient.attributes = new List<PatientAttributes> { attribute };
                             }
 
 
@@ -214,6 +214,15 @@ namespace Common
                             if (!string.IsNullOrEmpty(hivEnrolment.encounterType))
                             {
                                 patient.Encounters.Add(hivEnrolment);
+
+                                var patientProgram = new PatientProgram
+                                {
+                                    dateEnrolled = hivEnrolment.encounterDatetime,
+                                    dateCompleted = hivEnrolment.encounterDatetime,
+
+                                };
+
+                                patient.PatientProgram = patientProgram;
                             }
 
                             var pharmacies = BuildPharmacy(patientId, pp.date_birth.Trim());

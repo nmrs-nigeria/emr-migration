@@ -133,9 +133,9 @@ namespace Common
                                                     var attribute = new PatientAttributes
                                                     {
                                                         attributeType = "14d4f066-15f5-102d-96e4-000c29c2a5d7", //Phone number uuid
-                                                        value = phoneStr.ToString(),
+                                                        value = Utilities.UnscrambleNumbers(phoneStr.ToString()),
                                                     };
-                                                    //pd.attributes = new List<PatientAttributes> { attribute };
+                                                    patient.attributes = new List<PatientAttributes> { attribute };
                                                 }
                                             }
 
@@ -245,6 +245,15 @@ namespace Common
                                             if (!string.IsNullOrEmpty(hivEnrolment.encounterType))
                                             {
                                                 patient.Encounters.Add(hivEnrolment);
+
+                                                var patientProgram = new PatientProgram
+                                                {
+                                                    dateEnrolled = hivEnrolment.encounterDatetime,
+                                                    dateCompleted = hivEnrolment.encounterDatetime,
+
+                                                };
+
+                                                patient.PatientProgram = patientProgram;
                                             }
 
                                             var pharmacies = BuildPharmacy(patientId, dobStr.ToString().Trim());
@@ -323,7 +332,7 @@ namespace Common
                 encounterDatetime = "",
                 location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
                 form = "38d688ed-a569-4868-b5b2-a2f204a2e572", //care card
-                //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                //provider = "1c3db49d-440a-11e6-a65c-00e04c680037", //super user
                 obs = new List<Obs>()
             };
 
@@ -805,11 +814,11 @@ namespace Common
 
             var hivEnrolment = new Encounter
             {
-                encounterType = "11eb2647-91b4-482a-9cb3-08573e0d219b", //art commencement
+                encounterType = "11eb2647-91b4-482a-9cb3-08573e0d219b", //HIV Enrolment
                 encounterDatetime = "",
-                location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
+                location = "6351fcf4-e311-4a19-90f9-35667d99a8af", //Registration Desk
                 form = "c2df5a7d-05ac-4ae3-bcd0-39969f17dbab", //HIV Enrolment
-                //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                //provider = "1c3db49d-440a-11e6-a65c-00e04c680037", //super user
                 obs = new List<Obs>()
             };
 
@@ -1294,7 +1303,7 @@ namespace Common
                                         encounterDatetime = "",
                                         location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
                                         form = "5d522e63-463e-4a9f-a2c1-7ebbe4069a49", //care card
-                                        //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                                        //provider = "1c3db49d-440a-11e6-a65c-00e04c680037", //super user
                                         obs = new List<Obs>()
                                     };
 
@@ -1304,7 +1313,7 @@ namespace Common
                                         encounterDatetime = "",
                                         location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
                                         form = "a000cb34-9ec1-4344-a1c8-f692232f6edd", //vitals
-                                        //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                                        //provider = "1c3db49d-440a-11e6-a65c-00e04c680037", //super user
                                         obs = new List<Obs>()
                                     };
 
@@ -1789,7 +1798,7 @@ namespace Common
                                                 encounterDatetime = "",
                                                 location = "7f65d926-57d6-4402-ae10-a5b3bcbf7986", //pharmacy
                                                 form = "4a238dc4-a76b-4c0f-a100-229d98fd5758", //pharmacy form
-                                                                                               //provider = "f9badd80-ab76-11e2-9e96-0800200c9a66", //super user
+                                                                                               //provider = "1c3db49d-440a-11e6-a65c-00e04c680037", //super user
                                                 obs = new List<Obs>()
                                             };
 

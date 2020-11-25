@@ -148,6 +148,27 @@ namespace LAMIS_NMRS.Utils
                             var patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
                             if(!string.IsNullOrEmpty(patientUuid))
                             {
+
+                                //migrate patient program
+                                if (p.PatientProgram != null)
+                                {
+                                    if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
+                                    {
+                                        p.PatientProgram.patient = patientUuid;
+                                        var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
+                                    }
+                                }
+
+                                //migrate patient attribute
+                                if (p.attributes != null)
+                                {
+                                    if (p.attributes.Any())
+                                    {
+                                        var attribute = p.attributes[0];
+                                        var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
+                                    }
+                                }
+
                                 foreach (var e in p.Encounters)
                                 {
                                     e.patient = patientUuid;
@@ -337,6 +358,38 @@ namespace LAMIS_NMRS.Utils
                             
                             if (!string.IsNullOrEmpty(patientUuid))
                             {
+
+                                //migrate patient program
+                                if (p.PatientProgram != null)
+                                {
+                                    if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
+                                    {
+                                        //check if patient is already enrolled in program
+                                        var pPrograms = apiHelper.GetData(URLConstants.programenrollment + "?patient=" + patientUuid).Result.results;
+                                        if (!pPrograms.Any())
+                                        {
+                                            p.PatientProgram.patient = patientUuid;
+                                            var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
+                                        }
+
+                                    }
+                                }
+
+                                //migrate patient attribute
+                                if (p.attributes != null)
+                                {
+                                    if (p.attributes.Any())
+                                    {
+                                        //check if patient already has this attribute
+                                        var pAttributes = apiHelper.GetData("/person/" + patientUuid + "/attribute").Result.results;
+                                        if (!pAttributes.Any())
+                                        {
+                                            var attribute = p.attributes[0];
+                                            var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
+                                        }
+                                    }
+                                }
+
                                 foreach (var e in p.Encounters)
                                 {
                                     e.patient = patientUuid;
