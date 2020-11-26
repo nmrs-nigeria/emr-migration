@@ -358,7 +358,6 @@ namespace LAMIS_NMRS.Utils
                             
                             if (!string.IsNullOrEmpty(patientUuid))
                             {
-
                                 //migrate patient program
                                 if (p.PatientProgram != null)
                                 {
