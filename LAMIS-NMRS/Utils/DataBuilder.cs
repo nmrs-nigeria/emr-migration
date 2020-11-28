@@ -218,7 +218,7 @@ namespace Common
                                 var patientProgram = new PatientProgram
                                 {
                                     dateEnrolled = hivEnrolment.encounterDatetime,
-                                    dateCompleted = hivEnrolment.encounterDatetime,
+                                    //dateCompleted = hivEnrolment.encounterDatetime,
 
                                 };
 

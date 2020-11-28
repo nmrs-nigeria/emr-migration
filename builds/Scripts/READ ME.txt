@@ -1,2 +1,0 @@
-Please run the pharmacy_scripting.sql script against your LAMIS database.
-Ensure the that the Facility Primary kepy is provided at the point you have  ***facility_id = 3109***
