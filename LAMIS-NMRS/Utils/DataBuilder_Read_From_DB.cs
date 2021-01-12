@@ -2647,7 +2647,7 @@ namespace Common
                                             var user_id = reader["user_id"];
                                             var id_uuid = reader["id_uuid"];
                                             var uuid = reader["uuid"];
-                                            var archived = reader["archived"];
+                                            //var archived = reader["archived"];
 
                                             labDs.Add(new LabData
                                             {
@@ -2667,7 +2667,7 @@ namespace Common
                                                 user_id = user_id != null ? user_id.ToString() : "",
                                                 id_uuid = id_uuid != null ? id_uuid.ToString() : "",
                                                 uuid = uuid != null ? uuid.ToString() : "",
-                                                archived = archived != null ? archived.ToString() : ""
+                                                //archived = archived != null ? archived.ToString() : ""
                                             });
                                         }
                                     }

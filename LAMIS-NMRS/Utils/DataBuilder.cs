@@ -2565,7 +2565,7 @@ namespace Common
                             var user_id = worksheet.Cells["N" + i].Value;
                             var id_uuid = worksheet.Cells["O" + i].Value;
                             var uuid = worksheet.Cells["P" + i].Value;
-                            var archived = worksheet.Cells["Q" + i].Value;
+                            //var archived = worksheet.Cells["Q" + i].Value;
 
                             labs.Add(new LabData
                             {
@@ -2585,7 +2585,7 @@ namespace Common
                                 user_id = user_id != null ? user_id.ToString() : "",
                                 id_uuid = id_uuid != null ? id_uuid.ToString() : "",
                                 uuid = uuid != null ? uuid.ToString() : "",
-                                archived = archived != null ? archived.ToString() : ""
+                                //archived = archived != null ? archived.ToString() : ""
                             });
                         }
 
