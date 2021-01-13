@@ -69,6 +69,7 @@ namespace LAMIS_NMRS
                 migOption.NmrsWebPassword = Utilities.GetAppConfigItem("nmrs_Web_Password");
                 migOption.NmrsServerPort = Utilities.GetAppConfigItem("nmrs_Server_Port");
                 //migOption.NmrsDatabaseName = Utilities.GetAppConfigItem("nmrs_Database_Name");
+                migOption.NmrsUrlBasePath = Utilities.GetAppConfigItem("nmrs_Url_Base_Path");
                 migOption.PartnerShortName = Utilities.GetAppConfigItem("partner_short_name");
                 migOption.PartnerFullName = Utilities.GetAppConfigItem("partner_full_name");
 

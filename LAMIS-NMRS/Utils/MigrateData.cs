@@ -19,7 +19,10 @@ namespace LAMIS_NMRS.Utils
         public MigrateData(MigrationOption migOption)
         {
             _migOption = migOption;
-            var apiUrl = "http://localhost:" +_migOption.NmrsServerPort+ "/openmrs/ws/rest/v1/";
+            var apiUrl = "http://localhost:" 
+                + (_migOption.NmrsServerPort ?? "8080") 
+                + (_migOption.NmrsUrlBasePath ?? "/openmrs") 
+                + "/ws/rest/v1/";
             _migOption.BaseUrl = apiUrl;
             mysqlconn = "Server=localhost;Database=" + _migOption.NmrsDatabaseName + ";Uid=" + _migOption.NmrsWebUsername + ";Pwd=" + _migOption.NmrsWebPassword + ";";
             apiHelper = new APIHelper(_migOption);
@@ -118,8 +121,8 @@ namespace LAMIS_NMRS.Utils
                         var visitsMigrated = 0;
                         var obsCount = 0;
 
-                        Console.ForegroundColor = ConsoleColor.White;
-                        Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
+                        //Console.ForegroundColor = ConsoleColor.White;
+                        //Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
                         if (p.person.addresses == null)
                         {
                             p.person.addresses = new List<Personaddress>();

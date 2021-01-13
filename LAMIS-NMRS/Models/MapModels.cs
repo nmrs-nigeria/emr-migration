@@ -183,6 +183,7 @@ namespace LAMIS_NMRS.Models
         public string NmrsWebUsername { get; set; }
         public string NmrsWebPassword { get; set; }
         public string NmrsServerPort { get; set; }
+        public string NmrsUrlBasePath { get; set; }
         public string BaseUrl { get; set; }
         public string PartnerShortName { get; set; }
         public string PartnerFullName { get; set; }
