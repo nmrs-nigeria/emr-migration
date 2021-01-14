@@ -301,7 +301,7 @@ namespace Common
                     var mgP = await PushData(patients);
 
                     Console.ForegroundColor = ConsoleColor.White;
-                    Console.WriteLine($"Migrated {migrationReport.patients} so far.");
+                    Console.WriteLine($"Migrated {migrationReport.patients} patients so far." + Environment.NewLine);
                     Console.WriteLine("Retrieving more patients...{0}", Environment.NewLine);
                     goto retrievePatients;
                 }
