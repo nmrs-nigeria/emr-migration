@@ -2,12 +2,14 @@
 using LAMIS_NMRS.Models;
 using LAMIS_NMRS.Utils;
 using System;
+using System.Threading.Tasks;
 
 namespace LAMIS_NMRS
 {
     class Program
-    {             
-        static void Main(string[] args)
+    {   
+        [MTAThread]
+        static async Task Main(string[] args)
         {
             try
             {
@@ -130,11 +132,11 @@ namespace LAMIS_NMRS
 
                 if (migOption.Option == 1)
                 {
-                    new DataBuilder_Read_From_DB(migOption);
+                    await new DataBuilder_Read_From_DB(migOption).BuildPatientInfo();
                 }
                 else
                 {
-                    new DataBuilder(migOption);
+                    await new DataBuilder(migOption).BuildPatientInfo();
                 }
 
 

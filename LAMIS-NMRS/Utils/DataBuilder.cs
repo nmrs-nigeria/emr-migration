@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Common
 {
@@ -27,7 +28,7 @@ namespace Common
         MigrationOption _migOption;
         string rootDir;
         MigrationReport migrationReport;
-        int itemsPerPage = 10, pageNumber = 0;
+        int itemsPerPage = 100, pageNumber = 0;
         bool migrationChecked = false;
         bool migrationHappend = false;
 
@@ -37,12 +38,15 @@ namespace Common
             migrationReport = new MigrationReport();
             rootDir = Directory.GetCurrentDirectory();
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            //Console.ForegroundColor = ConsoleColor.White;
+            //Console.WriteLine("::: Starting Migration. Please don't close this window :::" + Environment.NewLine);
+            //BuildPatientInfo();
+        }
+        public async Task BuildPatientInfo()
+        {
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("::: Starting Migration. Please don't close this window :::" + Environment.NewLine);
-            BuildPatientInfo();
-        }
-        public void BuildPatientInfo()
-        {                  
+
             try
             {
                 var startDate = DateTime.Now;
@@ -258,9 +262,10 @@ namespace Common
                 });
                 if (patients.Any())
                 {
-                    var mgP = PushData(patients);
+                    var mgP = await PushData(patients);
 
                     Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine($"Migrated {migrationReport.patients} so far.");
                     Console.WriteLine("Retrieving more patients...{0}", Environment.NewLine);
                     goto retrievePatients;
                 }
@@ -2951,7 +2956,7 @@ namespace Common
                 return new List<PharmacyData>();
             }
         }
-        public MigrationReport PushData(List<Patient> patients)
+        public async Task<MigrationReport> PushData(List<Patient> patients)
         {
             if (!migrationChecked)
             {
@@ -2977,7 +2982,7 @@ namespace Common
                 migrationChecked = true;
             }
 
-            var migratedDataReport = migrationHappend ? new MigrateData(_migOption).UpdateMigration(patients) : new MigrateData(_migOption).Migrate(patients);
+            var migratedDataReport = migrationHappend ? await new MigrateData(_migOption).UpdateMigration(patients) : await new MigrateData(_migOption).Migrate(patients);
             if (migratedDataReport.patients > 0)
             {
                 migrationReport.patients += migratedDataReport.patients;

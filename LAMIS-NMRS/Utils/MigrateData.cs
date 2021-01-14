@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LAMIS_NMRS.Utils
 {
@@ -107,178 +109,367 @@ namespace LAMIS_NMRS.Utils
                 return dxc;
             }
         }
-        public MigrationReport Migrate(List<Patient> patients)
+        public async Task<MigrationReport> Migrate(List<Patient> patients)
         {
             try
             {
                 if (patients.Any())
                 {
-                    patients.ForEach(p =>
-                    {
-                        //migrate person, identifiers, address   
-                        var startD = DateTime.Now;
-                        var encountersMigrated = 0;
-                        var visitsMigrated = 0;
-                        var obsCount = 0;
-
-                        //Console.ForegroundColor = ConsoleColor.White;
-                        //Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
-                        if (p.person.addresses == null)
+                    await Task.Run(() =>
+                    { 
+                        Parallel.ForEach(patients, p =>
                         {
-                            p.person.addresses = new List<Personaddress>();
-                        }
+                            //migrate person, identifiers, address   
+                            var startD = DateTime.Now;
+                            var encountersMigrated = 0;
+                            var visitsMigrated = 0;
+                            var obsCount = 0;
 
-                        if (!p.person.addresses.Any())
-                        {
-                            p.person.addresses.Add(new Personaddress
+                            //Console.ForegroundColor = ConsoleColor.White;
+                            //Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
+                            if (p.person.addresses == null)
                             {
-                                preferred = true,
-                                address1 = " ",
-                                country = "Nigeria",
-                                cityVillage = " ",
-                                stateProvince = " "
-                            });
-                        }
+                                p.person.addresses = new List<Personaddress>();
+                            }
 
-                        var personUuid = apiHelper.SendData<ApiResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
-                        if (!string.IsNullOrEmpty(personUuid))
-                        {
-                            var patientInfo = new PatientInfo
+                            if (!p.person.addresses.Any())
                             {
-                                person = personUuid,
-                                identifiers = p.identifiers
-                            };
-                            var patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
-                            if(!string.IsNullOrEmpty(patientUuid))
+                                p.person.addresses.Add(new Personaddress
+                                {
+                                    preferred = true,
+                                    address1 = " ",
+                                    country = "Nigeria",
+                                    cityVillage = " ",
+                                    stateProvince = " "
+                                });
+                            }
+
+                            var personUuid = apiHelper.SendData<ApiResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
+                            if (!string.IsNullOrEmpty(personUuid))
                             {
-
-                                //migrate patient program
-                                if (p.PatientProgram != null)
+                                var patientInfo = new PatientInfo
                                 {
-                                    if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
-                                    {
-                                        p.PatientProgram.patient = patientUuid;
-                                        var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
-                                    }
-                                }
-
-                                //migrate patient attribute
-                                if (p.attributes != null)
+                                    person = personUuid,
+                                    identifiers = p.identifiers
+                                };
+                                var patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
+                                if (!string.IsNullOrEmpty(patientUuid))
                                 {
-                                    if (p.attributes.Any())
+
+                                    //migrate patient program
+                                    if (p.PatientProgram != null)
                                     {
-                                        var attribute = p.attributes[0];
-                                        var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
-                                    }
-                                }
-
-                                foreach (var e in p.Encounters)
-                                {
-                                    e.patient = patientUuid;
-                                }
-                                migrationReport.patients += 1;
-                                var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
-
-                                //Migrate Encounters
-                                Console.WriteLine("Migrating encounters...{0}", Environment.NewLine);
-                                foreach (var g in encounterGroups)
-                                {
-                                    var encounterUuids = new List<string>();
-                                    var encounters = g.ToList();
-
-                                    var visit = new Visit
-                                    {
-                                        startDatetime = g.Key,
-                                        stopDatetime = g.Key,
-                                        location = encounters[0].location,
-                                        patient = patientUuid
-                                    };
-
-                                    var visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
-                                    if (string.IsNullOrEmpty(visitUuid))
-                                    {
-                                        var error = "Clinical Visit failed to migrate. Visit Date: " + g.Key;
-                                        Console.ForegroundColor = ConsoleColor.White;
-                                        Console.WriteLine("Visit migration for patient with ID: {0} {1} {2} at " + visit.startDatetime + " failed with the following message", p.identifiers[0], Environment.NewLine, Environment.NewLine);
-
-                                        Console.ForegroundColor = ConsoleColor.Red;
-                                        Console.WriteLine(error);
-                                        continue;
-                                    }
-
-                                    migrationReport.visit += 1;
-                                    visitsMigrated += 1;
-
-                                    foreach (var enc in encounters)
-                                    {
-                                        enc.visit = visitUuid;
-                                        enc.encounterDatetime = g.Key;
-
-                                        enc.obs.ForEach(ol =>
+                                        if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
                                         {
-                                            ol.location = enc.location;
-                                            ol.obsDatetime = enc.encounterDatetime;
-                                            ol.person = personUuid;
+                                            p.PatientProgram.patient = patientUuid;
+                                            var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
+                                        }
+                                    }
 
-                                            if (ol.groupMembers.Any())
+                                    //migrate patient attribute
+                                    if (p.attributes != null)
+                                    {
+                                        if (p.attributes.Any())
+                                        {
+                                            var attribute = p.attributes[0];
+                                            var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
+                                        }
+                                    }
+
+                                    foreach (var e in p.Encounters)
+                                    {
+                                        e.patient = patientUuid;
+                                    }
+
+                                    //migrationReport.patients += 1;
+                                    var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
+
+                                    //Migrate Encounters
+                                    //Console.WriteLine("Migrating encounters...{0}", Environment.NewLine);
+                                    foreach (var g in encounterGroups)
+                                    {
+                                        var encounterUuids = new List<string>();
+                                        var encounters = g.ToList();
+
+                                        var visit = new Visit
+                                        {
+                                            startDatetime = g.Key,
+                                            stopDatetime = g.Key,
+                                            location = encounters[0].location,
+                                            patient = patientUuid
+                                        };
+
+                                        var visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
+                                        if (string.IsNullOrEmpty(visitUuid))
+                                        {
+                                            lock (migrationReport)
                                             {
-                                                var groupMembers = new List<string>();
+                                                var error = "Clinical Visit failed to migrate. Visit Date: " + g.Key;
+                                                Console.ForegroundColor = ConsoleColor.White;
+                                                Console.WriteLine("Visit migration for patient with ID: {0} {1} {2} at " + visit.startDatetime + " failed with the following message", p.identifiers[0], Environment.NewLine, Environment.NewLine);
 
-                                                ol.groupMembers.ForEach(og =>
+                                                Console.ForegroundColor = ConsoleColor.Red;
+                                                Console.WriteLine(error);
+                                            }
+                                            continue;
+                                        }
+
+                                        //migrationReport.visit += 1;
+                                        visitsMigrated += 1;
+
+                                        foreach (var enc in encounters)
+                                        {
+                                            enc.visit = visitUuid;
+                                            enc.encounterDatetime = g.Key;
+
+                                            enc.obs.ForEach(ol =>
+                                            {
+                                                ol.location = enc.location;
+                                                ol.obsDatetime = enc.encounterDatetime;
+                                                ol.person = personUuid;
+
+                                                if (ol.groupMembers.Any())
                                                 {
-                                                    og.location = enc.location;
-                                                    og.obsDatetime = enc.encounterDatetime;
-                                                    og.person = personUuid;
+                                                    var groupMembers = new List<string>();
+
+                                                    ol.groupMembers.ForEach(og =>
+                                                    {
+                                                        og.location = enc.location;
+                                                        og.obsDatetime = enc.encounterDatetime;
+                                                        og.person = personUuid;
+                                                    });
+                                                }
+                                            });
+
+                                            var encounterUuid = apiHelper.SendData<ApiResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
+                                            if (!string.IsNullOrEmpty(encounterUuid))
+                                            {
+                                                //migrationReport.encounters += 1;
+                                                encountersMigrated += 1;
+                                                //migrationReport.obs += enc.obs.Count();
+                                                obsCount += 1;
+
+                                                enc.obs.ForEach(l =>
+                                                {
+                                                    if (l.groupMembers.Any())
+                                                    {
+                                                        //migrationReport.obs += l.groupMembers.Count();
+                                                        obsCount += 1;
+                                                    }
+
                                                 });
                                             }
-                                        });
-
-                                        var encounterUuid = apiHelper.SendData<ApiResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
-                                        if (!string.IsNullOrEmpty(encounterUuid))
-                                        {
-                                            migrationReport.encounters += 1;
-                                            encountersMigrated += 1;
-                                            migrationReport.obs += enc.obs.Count();
-                                            obsCount += 1;
-
-                                            enc.obs.ForEach(l =>
+                                            else
                                             {
-
-                                                if (l.groupMembers.Any())
+                                                lock (migrationReport)
                                                 {
-                                                    migrationReport.obs += l.groupMembers.Count();
-                                                    obsCount += 1;
+                                                    Console.ForegroundColor = ConsoleColor.Red;
+                                                    Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
+                                                    Console.ForegroundColor = ConsoleColor.White;
+                                                    Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
                                                 }
-                                                    
-                                            });
-                                        }
-                                        else
-                                        {
-                                            Console.ForegroundColor = ConsoleColor.Red;
-                                            Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
-                                            Console.ForegroundColor = ConsoleColor.White;
-                                            Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
+                                            }
                                         }
                                     }
+
+                                    lock (migrationReport)
+                                    {
+                                        var summarry = "Patient " + p.identifiers[0].identifier + " successfully migrated with: " + Environment.NewLine +
+                                        visitsMigrated.ToString() + " Visits, " + encountersMigrated.ToString() + " Encounters and " + obsCount.ToString() + " Obs";
+
+                                        Console.ForegroundColor = ConsoleColor.Green;
+                                        Console.WriteLine(summarry);
+                                        var d = (DateTime.Now - startD).ToString(@"hh\:mm\:ss");
+                                        Console.WriteLine("Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
+                                    }
                                 }
-
-                                var summarry = "Patient " + p.identifiers[0].identifier + " successfully migrated with: " + Environment.NewLine +
-                                visitsMigrated.ToString() +" Visits, " + encountersMigrated.ToString() + " Encounters and " + obsCount.ToString() + " Obs";
-
-                                Console.ForegroundColor = ConsoleColor.Green;
-                                Console.WriteLine(summarry);
-                                var d = (DateTime.Now - startD).ToString(@"hh\:mm\:ss");
-                                Console.WriteLine("Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
+                                else
+                                {
+                                    lock (migrationReport)
+                                    {
+                                        Console.ForegroundColor = ConsoleColor.Red;
+                                        Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                                        Console.WriteLine("Patient " + p.identifiers[0].identifier + " could not be migrated. Please check the error message and make the necessary corrections" + Environment.NewLine);
+                                    }
+                                }
                             }
-                            else
+
+                            lock (migrationReport)
                             {
-                                Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine(Environment.NewLine + Environment.NewLine);
-                                Console.WriteLine("Patient " + p.identifiers[0].identifier + " could not be migrated. Please check the error message and make the necessary corrections" + Environment.NewLine);
+                                migrationReport.patients += 1;
+                                migrationReport.visit += visitsMigrated;
+                                migrationReport.encounters += encountersMigrated;
+                                migrationReport.obs += obsCount;
                             }
-                        }
-
+                        });
                     });
+
+                    //patients.ForEach(p =>
+                    //{
+                    //    //migrate person, identifiers, address   
+                    //    var startD = DateTime.Now;
+                    //    var encountersMigrated = 0;
+                    //    var visitsMigrated = 0;
+                    //    var obsCount = 0;
+
+                    //    Console.ForegroundColor = ConsoleColor.White;
+                    //    Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
+                    //    if (p.person.addresses == null)
+                    //    {
+                    //        p.person.addresses = new List<Personaddress>();
+                    //    }
+
+                    //    if (!p.person.addresses.Any())
+                    //    {
+                    //        p.person.addresses.Add(new Personaddress
+                    //        {
+                    //            preferred = true,
+                    //            address1 = " ",
+                    //            country = "Nigeria",
+                    //            cityVillage = " ",
+                    //            stateProvince = " "
+                    //        });
+                    //    }
+
+                    //    var personUuid = apiHelper.SendData<ApiResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
+                    //    if (!string.IsNullOrEmpty(personUuid))
+                    //    {
+                    //        var patientInfo = new PatientInfo
+                    //        {
+                    //            person = personUuid,
+                    //            identifiers = p.identifiers
+                    //        };
+                    //        var patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
+                    //        if(!string.IsNullOrEmpty(patientUuid))
+                    //        {
+
+                    //            //migrate patient program
+                    //            if (p.PatientProgram != null)
+                    //            {
+                    //                if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
+                    //                {
+                    //                    p.PatientProgram.patient = patientUuid;
+                    //                    var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
+                    //                }
+                    //            }
+
+                    //            //migrate patient attribute
+                    //            if (p.attributes != null)
+                    //            {
+                    //                if (p.attributes.Any())
+                    //                {
+                    //                    var attribute = p.attributes[0];
+                    //                    var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
+                    //                }
+                    //            }
+
+                    //            foreach (var e in p.Encounters)
+                    //            {
+                    //                e.patient = patientUuid;
+                    //            }
+                    //            migrationReport.patients += 1;
+                    //            var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
+
+                    //            //Migrate Encounters
+                    //            Console.WriteLine("Migrating encounters...{0}", Environment.NewLine);
+                    //            foreach (var g in encounterGroups)
+                    //            {
+                    //                var encounterUuids = new List<string>();
+                    //                var encounters = g.ToList();
+
+                    //                var visit = new Visit
+                    //                {
+                    //                    startDatetime = g.Key,
+                    //                    stopDatetime = g.Key,
+                    //                    location = encounters[0].location,
+                    //                    patient = patientUuid
+                    //                };
+
+                    //                var visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
+                    //                if (string.IsNullOrEmpty(visitUuid))
+                    //                {
+                    //                    var error = "Clinical Visit failed to migrate. Visit Date: " + g.Key;
+                    //                    Console.ForegroundColor = ConsoleColor.White;
+                    //                    Console.WriteLine("Visit migration for patient with ID: {0} {1} {2} at " + visit.startDatetime + " failed with the following message", p.identifiers[0], Environment.NewLine, Environment.NewLine);
+
+                    //                    Console.ForegroundColor = ConsoleColor.Red;
+                    //                    Console.WriteLine(error);
+                    //                    continue;
+                    //                }
+
+                    //                migrationReport.visit += 1;
+                    //                visitsMigrated += 1;
+
+                    //                foreach (var enc in encounters)
+                    //                {
+                    //                    enc.visit = visitUuid;
+                    //                    enc.encounterDatetime = g.Key;
+
+                    //                    enc.obs.ForEach(ol =>
+                    //                    {
+                    //                        ol.location = enc.location;
+                    //                        ol.obsDatetime = enc.encounterDatetime;
+                    //                        ol.person = personUuid;
+
+                    //                        if (ol.groupMembers.Any())
+                    //                        {
+                    //                            var groupMembers = new List<string>();
+
+                    //                            ol.groupMembers.ForEach(og =>
+                    //                            {
+                    //                                og.location = enc.location;
+                    //                                og.obsDatetime = enc.encounterDatetime;
+                    //                                og.person = personUuid;
+                    //                            });
+                    //                        }
+                    //                    });
+
+                    //                    var encounterUuid = apiHelper.SendData<ApiResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
+                    //                    if (!string.IsNullOrEmpty(encounterUuid))
+                    //                    {
+                    //                        migrationReport.encounters += 1;
+                    //                        encountersMigrated += 1;
+                    //                        migrationReport.obs += enc.obs.Count();
+                    //                        obsCount += 1;
+
+                    //                        enc.obs.ForEach(l =>
+                    //                        {
+
+                    //                            if (l.groupMembers.Any())
+                    //                            {
+                    //                                migrationReport.obs += l.groupMembers.Count();
+                    //                                obsCount += 1;
+                    //                            }
+                                                    
+                    //                        });
+                    //                    }
+                    //                    else
+                    //                    {
+                    //                        Console.ForegroundColor = ConsoleColor.Red;
+                    //                        Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
+                    //                        Console.ForegroundColor = ConsoleColor.White;
+                    //                        Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
+                    //                    }
+                    //                }
+                    //            }
+
+                    //            var summarry = "Patient " + p.identifiers[0].identifier + " successfully migrated with: " + Environment.NewLine +
+                    //            visitsMigrated.ToString() +" Visits, " + encountersMigrated.ToString() + " Encounters and " + obsCount.ToString() + " Obs";
+
+                    //            Console.ForegroundColor = ConsoleColor.Green;
+                    //            Console.WriteLine(summarry);
+                    //            var d = (DateTime.Now - startD).ToString(@"hh\:mm\:ss");
+                    //            Console.WriteLine("Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
+                    //        }
+                    //        else
+                    //        {
+                    //            Console.ForegroundColor = ConsoleColor.Red;
+                    //            Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                    //            Console.WriteLine("Patient " + p.identifiers[0].identifier + " could not be migrated. Please check the error message and make the necessary corrections" + Environment.NewLine);
+                    //        }
+                    //    }
+
+                    //});
                     return migrationReport;
                 }
                 return new MigrationReport();
@@ -294,230 +485,468 @@ namespace LAMIS_NMRS.Utils
                 return migrationReport;
             }
         }
-        public MigrationReport UpdateMigration(List<Patient> patients)
+        public async Task<MigrationReport> UpdateMigration(List<Patient> patients)
         {
             try
             {
                 if (patients.Any())
                 {
-                    patients.ForEach(p =>
+                    await Task.Run(() =>
                     {
-                        //migrate person, identifiers, address   
-                        var startD = DateTime.Now;
-                        var encountersMigrated = 0;
-                        var visitsMigrated = 0;
-                        var obsCount = 0;
-
-                        Console.ForegroundColor = ConsoleColor.White;
-                        Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
-                        if (p.person.addresses == null)
+                        Parallel.ForEach(patients, p =>
                         {
-                            p.person.addresses = new List<Personaddress>();
-                        }
+                            //migrate person, identifiers, address   
+                            var startD = DateTime.Now;
+                            var encountersMigrated = 0;
+                            var visitsMigrated = 0;
+                            var obsCount = 0;
 
-                        if (!p.person.addresses.Any())
-                        {
-                            p.person.addresses.Add(new Personaddress
+                            //Console.ForegroundColor = ConsoleColor.White;
+                            //Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
+                            if (p.person.addresses == null)
                             {
-                                preferred = true,
-                                address1 = " ",
-                                country = "Nigeria",
-                                cityVillage = " ",
-                                stateProvince = " "
-                            });
-                        }
-
-                        var personUuid = "";
-                        var patientExists = false;
-                        var uuids = apiHelper.GetData("patient?identifier=" + p.identifiers[0].identifier).Result.results;
-                        if (uuids.Any())
-                        {
-                            personUuid = uuids[0].uuid;
-                            patientExists = true;
-                        }
-
-                        if(string.IsNullOrEmpty(personUuid))
-                        {
-                            personUuid = apiHelper.SendData<ApiResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
-                        }                        
-                        if (!string.IsNullOrEmpty(personUuid))
-                        {
-                            var patientInfo = new PatientInfo
-                            {
-                                person = personUuid,
-                                identifiers = p.identifiers
-                            };
-
-                            var patientUuid = "";
-
-                            if (!patientExists)
-                            {
-                                patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
+                                p.person.addresses = new List<Personaddress>();
                             }
-                            else
+
+                            if (!p.person.addresses.Any())
                             {
-                                patientUuid = personUuid;
+                                p.person.addresses.Add(new Personaddress
+                                {
+                                    preferred = true,
+                                    address1 = " ",
+                                    country = "Nigeria",
+                                    cityVillage = " ",
+                                    stateProvince = " "
+                                });
                             }
-                            
-                            if (!string.IsNullOrEmpty(patientUuid))
+
+                            var personUuid = "";
+                            var patientExists = false;
+                            var uuids = apiHelper.GetData("patient?identifier=" + p.identifiers[0].identifier).Result.results;
+                            if (uuids.Any())
                             {
-                                //migrate patient program
-                                if (p.PatientProgram != null)
-                                {
-                                    if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
-                                    {
-                                        //check if patient is already enrolled in program
-                                        var pPrograms = apiHelper.GetData(URLConstants.programenrollment + "?patient=" + patientUuid).Result.results;
-                                        if (!pPrograms.Any())
-                                        {
-                                            p.PatientProgram.patient = patientUuid;
-                                            var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
-                                        }
+                                personUuid = uuids[0].uuid;
+                                patientExists = true;
+                            }
 
-                                    }
+                            if (string.IsNullOrEmpty(personUuid))
+                            {
+                                personUuid = apiHelper.SendData<ApiResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
+                            }
+                            if (!string.IsNullOrEmpty(personUuid))
+                            {
+                                var patientInfo = new PatientInfo
+                                {
+                                    person = personUuid,
+                                    identifiers = p.identifiers
+                                };
+
+                                var patientUuid = "";
+
+                                if (!patientExists)
+                                {
+                                    patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
+                                }
+                                else
+                                {
+                                    patientUuid = personUuid;
                                 }
 
-                                //migrate patient attribute
-                                if (p.attributes != null)
+                                if (!string.IsNullOrEmpty(patientUuid))
                                 {
-                                    if (p.attributes.Any())
+                                    //migrate patient program
+                                    if (p.PatientProgram != null)
                                     {
-                                        //check if patient already has this attribute
-                                        var pAttributes = apiHelper.GetData("/person/" + patientUuid + "/attribute").Result.results;
-                                        if (!pAttributes.Any())
+                                        if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
                                         {
-                                            var attribute = p.attributes[0];
-                                            var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
-                                        }
-                                    }
-                                }
-
-                                foreach (var e in p.Encounters)
-                                {
-                                    e.patient = patientUuid;
-                                }
-                                migrationReport.patients += 1;
-                                var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
-
-                                //Migrate Encounters
-                                Console.WriteLine("Migrating encounters...{0}", Environment.NewLine);
-                                foreach (var g in encounterGroups)
-                                {
-                                    var encounterUuids = new List<string>();
-                                    var encounters = g.ToList();
-
-                                    var visit = new Visit
-                                    {
-                                        startDatetime = g.Key,
-                                        stopDatetime = g.Key,
-                                        location = encounters[0].location,
-                                        patient = patientUuid
-                                    };
-
-                                    var dv = encounters[0];
-                                    var visitUuid = "";
-
-                                    var vV = apiHelper.GetData("visit?limit=1&startIndex=0&todate=" + g.Key + "&patient=" + patientUuid + "&fromdate=" + g.Key).Result.results;
-                                    if (vV.Any())
-                                    {
-                                        visitUuid = vV[0].uuid;
-                                    }
-                                    else
-                                    {
-                                        visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
-                                    }
-                                    
-                                    if (string.IsNullOrEmpty(visitUuid))
-                                    {                                        
-                                        Console.ForegroundColor = ConsoleColor.Red;
-                                        Console.WriteLine(Environment.NewLine + "The clinical Visit on " + visit.startDatetime + " for patient " + p.identifiers[0].identifier + " failed to be migrated" + Environment.NewLine + Environment.NewLine);
-                                        Console.ForegroundColor = ConsoleColor.White;
-                                        continue;
-                                    }
-
-                                    migrationReport.visit += 1;
-                                    visitsMigrated += 1;
-
-                                    foreach (var enc in encounters)
-                                    {
-                                        enc.visit = visitUuid;
-                                        enc.encounterDatetime = g.Key;
-
-                                        enc.obs.ForEach(ol =>
-                                        {
-                                            ol.location = enc.location;
-                                            ol.obsDatetime = enc.encounterDatetime;
-                                            ol.person = personUuid;
-
-                                            if (ol.groupMembers.Any())
+                                            //check if patient is already enrolled in program
+                                            var pPrograms = apiHelper.GetData(URLConstants.programenrollment + "?patient=" + patientUuid).Result.results;
+                                            if (!pPrograms.Any())
                                             {
-                                                var groupMembers = new List<string>();
-
-                                                ol.groupMembers.ForEach(og =>
-                                                {
-                                                    og.location = enc.location;
-                                                    og.obsDatetime = enc.encounterDatetime;
-                                                    og.person = personUuid;
-                                                });
+                                                p.PatientProgram.patient = patientUuid;
+                                                var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
                                             }
-                                        });
 
-                                        var encounterUuid = "";
-                                        var encuuids = apiHelper.GetData("encounter?todate=" + enc.encounterDatetime + "&patient=" + patientUuid + "&encounterType=" + enc.encounterType + "&fromdate=" + enc.encounterDatetime).Result.results;
-                                        if (encuuids.Any())
-                                        {
-                                            encounterUuid = encuuids[0].uuid;
                                         }
+                                    }
 
-                                        if(string.IsNullOrEmpty(encounterUuid))
+                                    //migrate patient attribute
+                                    if (p.attributes != null)
+                                    {
+                                        if (p.attributes.Any())
                                         {
-                                            encounterUuid = apiHelper.SendData<ApiResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
-                                        }
-                                                                                
-                                        if (!string.IsNullOrEmpty(encounterUuid))
-                                        {
-                                            migrationReport.encounters += 1;
-                                            encountersMigrated += 1;
-                                            migrationReport.obs += enc.obs.Count();
-                                            obsCount += 1;
-
-                                            enc.obs.ForEach(l =>
+                                            //check if patient already has this attribute
+                                            var pAttributes = apiHelper.GetData("/person/" + patientUuid + "/attribute").Result.results;
+                                            if (!pAttributes.Any())
                                             {
-                                                if (l.groupMembers.Any())
-                                                {
-                                                    migrationReport.obs += l.groupMembers.Count();
-                                                    obsCount += 1;
-                                                }
+                                                var attribute = p.attributes[0];
+                                                var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
+                                            }
+                                        }
+                                    }
 
-                                            });
+                                    foreach (var e in p.Encounters)
+                                    {
+                                        e.patient = patientUuid;
+                                    }
+                                    //migrationReport.patients += 1;
+                                    var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
+
+                                    //Migrate Encounters
+                                    //Console.WriteLine("Migrating encounters...{0}", Environment.NewLine);
+                                    foreach (var g in encounterGroups)
+                                    {
+                                        var encounterUuids = new List<string>();
+                                        var encounters = g.ToList();
+
+                                        var visit = new Visit
+                                        {
+                                            startDatetime = g.Key,
+                                            stopDatetime = g.Key,
+                                            location = encounters[0].location,
+                                            patient = patientUuid
+                                        };
+
+                                        var dv = encounters[0];
+                                        var visitUuid = "";
+
+                                        var vV = apiHelper.GetData("visit?limit=1&startIndex=0&todate=" + g.Key + "&patient=" + patientUuid + "&fromdate=" + g.Key).Result.results;
+                                        if (vV.Any())
+                                        {
+                                            visitUuid = vV[0].uuid;
                                         }
                                         else
                                         {
+                                            visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
+                                        }
+
+                                        if (string.IsNullOrEmpty(visitUuid))
+                                        {
                                             Console.ForegroundColor = ConsoleColor.Red;
-                                            Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
+                                            Console.WriteLine(Environment.NewLine + "The clinical Visit on " + visit.startDatetime + " for patient " + p.identifiers[0].identifier + " failed to be migrated" + Environment.NewLine + Environment.NewLine);
                                             Console.ForegroundColor = ConsoleColor.White;
-                                            Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
+                                            continue;
+                                        }
+
+                                        //migrationReport.visit += 1;
+                                        visitsMigrated += 1;
+
+                                        foreach (var enc in encounters)
+                                        {
+                                            enc.visit = visitUuid;
+                                            enc.encounterDatetime = g.Key;
+
+                                            enc.obs.ForEach(ol =>
+                                            {
+                                                ol.location = enc.location;
+                                                ol.obsDatetime = enc.encounterDatetime;
+                                                ol.person = personUuid;
+
+                                                if (ol.groupMembers.Any())
+                                                {
+                                                    var groupMembers = new List<string>();
+
+                                                    ol.groupMembers.ForEach(og =>
+                                                    {
+                                                        og.location = enc.location;
+                                                        og.obsDatetime = enc.encounterDatetime;
+                                                        og.person = personUuid;
+                                                    });
+                                                }
+                                            });
+
+                                            var encounterUuid = "";
+                                            var encuuids = apiHelper.GetData("encounter?todate=" + enc.encounterDatetime + "&patient=" + patientUuid + "&encounterType=" + enc.encounterType + "&fromdate=" + enc.encounterDatetime).Result.results;
+                                            if (encuuids.Any())
+                                            {
+                                                encounterUuid = encuuids[0].uuid;
+                                            }
+
+                                            if (string.IsNullOrEmpty(encounterUuid))
+                                            {
+                                                encounterUuid = apiHelper.SendData<ApiResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
+                                            }
+
+                                            if (!string.IsNullOrEmpty(encounterUuid))
+                                            {
+                                                //migrationReport.encounters += 1;
+                                                encountersMigrated += 1;
+                                                //migrationReport.obs += enc.obs.Count();
+                                                obsCount += 1;
+
+                                                enc.obs.ForEach(l =>
+                                                {
+                                                    if (l.groupMembers.Any())
+                                                    {
+                                                        //migrationReport.obs += l.groupMembers.Count();
+                                                        obsCount += 1;
+                                                    }
+
+                                                });
+                                            }
+                                            else
+                                            {
+                                                lock (migrationReport)
+                                                {
+                                                    Console.ForegroundColor = ConsoleColor.Red;
+                                                    Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
+                                                    Console.ForegroundColor = ConsoleColor.White;
+                                                    Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
+                                                }
+                                            }
                                         }
                                     }
+
+                                    lock (migrationReport)
+                                    {
+                                        var summarry = "Patient " + p.identifiers[0].identifier + " successfully migrated with: " + Environment.NewLine +
+                                        visitsMigrated.ToString() + " Visits, " + encountersMigrated.ToString() + " Encounters and " + obsCount.ToString() + " Obs";
+
+                                        Console.ForegroundColor = ConsoleColor.Green;
+                                        Console.WriteLine(summarry);
+                                        var d = (DateTime.Now - startD).ToString(@"hh\:mm\:ss");
+                                        Console.WriteLine("Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
+                                    }
                                 }
-
-                                var summarry = "Patient " + p.identifiers[0].identifier + " successfully migrated with: " + Environment.NewLine +
-                                visitsMigrated.ToString() + " Visits, " + encountersMigrated.ToString() + " Encounters and " + obsCount.ToString() + " Obs";
-
-                                Console.ForegroundColor = ConsoleColor.Green;
-                                Console.WriteLine(summarry);
-                                var d = (DateTime.Now - startD).ToString(@"hh\:mm\:ss");
-                                Console.WriteLine("Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
+                                else
+                                {
+                                    lock (migrationReport)
+                                    {
+                                        Console.ForegroundColor = ConsoleColor.Red;
+                                        Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                                        Console.WriteLine("Patient " + p.identifiers[0].identifier + " could not be migrated. Please check the error message and make the necessary corrections" + Environment.NewLine);
+                                    }
+                                }
                             }
-                            else
+
+                            lock (migrationReport)
                             {
-                                Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine(Environment.NewLine + Environment.NewLine);
-                                Console.WriteLine("Patient " + p.identifiers[0].identifier + " could not be migrated. Please check the error message and make the necessary corrections" + Environment.NewLine);
+                                migrationReport.patients += 1;
+                                migrationReport.visit += visitsMigrated;
+                                migrationReport.encounters += encountersMigrated;
+                                migrationReport.obs += obsCount;
                             }
-                        }
-
+                        });
                     });
+
+                    //patients.ForEach(p =>
+                    //{
+                    //    //migrate person, identifiers, address   
+                    //    var startD = DateTime.Now;
+                    //    var encountersMigrated = 0;
+                    //    var visitsMigrated = 0;
+                    //    var obsCount = 0;
+
+                    //    Console.ForegroundColor = ConsoleColor.White;
+                    //    Console.WriteLine("Migrating patient with ID {0} ...", p.identifiers[0].identifier);
+                    //    if (p.person.addresses == null)
+                    //    {
+                    //        p.person.addresses = new List<Personaddress>();
+                    //    }
+
+                    //    if (!p.person.addresses.Any())
+                    //    {
+                    //        p.person.addresses.Add(new Personaddress
+                    //        {
+                    //            preferred = true,
+                    //            address1 = " ",
+                    //            country = "Nigeria",
+                    //            cityVillage = " ",
+                    //            stateProvince = " "
+                    //        });
+                    //    }
+
+                    //    var personUuid = "";
+                    //    var patientExists = false;
+                    //    var uuids = apiHelper.GetData("patient?identifier=" + p.identifiers[0].identifier).Result.results;
+                    //    if (uuids.Any())
+                    //    {
+                    //        personUuid = uuids[0].uuid;
+                    //        patientExists = true;
+                    //    }
+
+                    //    if(string.IsNullOrEmpty(personUuid))
+                    //    {
+                    //        personUuid = apiHelper.SendData<ApiResponse, PatientDemography>(URLConstants.person, p.person).Result.uuid;
+                    //    }                        
+                    //    if (!string.IsNullOrEmpty(personUuid))
+                    //    {
+                    //        var patientInfo = new PatientInfo
+                    //        {
+                    //            person = personUuid,
+                    //            identifiers = p.identifiers
+                    //        };
+
+                    //        var patientUuid = "";
+
+                    //        if (!patientExists)
+                    //        {
+                    //            patientUuid = apiHelper.SendData<ApiResponse, PatientInfo>(URLConstants.patient, patientInfo).Result.uuid;
+                    //        }
+                    //        else
+                    //        {
+                    //            patientUuid = personUuid;
+                    //        }
+                            
+                    //        if (!string.IsNullOrEmpty(patientUuid))
+                    //        {
+                    //            //migrate patient program
+                    //            if (p.PatientProgram != null)
+                    //            {
+                    //                if (!string.IsNullOrEmpty(p.PatientProgram.dateEnrolled))
+                    //                {
+                    //                    //check if patient is already enrolled in program
+                    //                    var pPrograms = apiHelper.GetData(URLConstants.programenrollment + "?patient=" + patientUuid).Result.results;
+                    //                    if (!pPrograms.Any())
+                    //                    {
+                    //                        p.PatientProgram.patient = patientUuid;
+                    //                        var ppEnrolment = apiHelper.SendData<ApiResponse, PatientProgram>(URLConstants.programenrollment, p.PatientProgram).Result.uuid;
+                    //                    }
+
+                    //                }
+                    //            }
+
+                    //            //migrate patient attribute
+                    //            if (p.attributes != null)
+                    //            {
+                    //                if (p.attributes.Any())
+                    //                {
+                    //                    //check if patient already has this attribute
+                    //                    var pAttributes = apiHelper.GetData("/person/" + patientUuid + "/attribute").Result.results;
+                    //                    if (!pAttributes.Any())
+                    //                    {
+                    //                        var attribute = p.attributes[0];
+                    //                        var ppAttribute = apiHelper.SendData<ApiResponse, PatientAttributes>("/person/" + patientUuid + "/attribute", attribute).Result.uuid;
+                    //                    }
+                    //                }
+                    //            }
+
+                    //            foreach (var e in p.Encounters)
+                    //            {
+                    //                e.patient = patientUuid;
+                    //            }
+                    //            migrationReport.patients += 1;
+                    //            var encounterGroups = p.Encounters.GroupBy(g => g.encounterDatetime).ToList();
+
+                    //            //Migrate Encounters
+                    //            Console.WriteLine("Migrating encounters...{0}", Environment.NewLine);
+                    //            foreach (var g in encounterGroups)
+                    //            {
+                    //                var encounterUuids = new List<string>();
+                    //                var encounters = g.ToList();
+
+                    //                var visit = new Visit
+                    //                {
+                    //                    startDatetime = g.Key,
+                    //                    stopDatetime = g.Key,
+                    //                    location = encounters[0].location,
+                    //                    patient = patientUuid
+                    //                };
+
+                    //                var dv = encounters[0];
+                    //                var visitUuid = "";
+
+                    //                var vV = apiHelper.GetData("visit?limit=1&startIndex=0&todate=" + g.Key + "&patient=" + patientUuid + "&fromdate=" + g.Key).Result.results;
+                    //                if (vV.Any())
+                    //                {
+                    //                    visitUuid = vV[0].uuid;
+                    //                }
+                    //                else
+                    //                {
+                    //                    visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
+                    //                }
+                                    
+                    //                if (string.IsNullOrEmpty(visitUuid))
+                    //                {                                        
+                    //                    Console.ForegroundColor = ConsoleColor.Red;
+                    //                    Console.WriteLine(Environment.NewLine + "The clinical Visit on " + visit.startDatetime + " for patient " + p.identifiers[0].identifier + " failed to be migrated" + Environment.NewLine + Environment.NewLine);
+                    //                    Console.ForegroundColor = ConsoleColor.White;
+                    //                    continue;
+                    //                }
+
+                    //                migrationReport.visit += 1;
+                    //                visitsMigrated += 1;
+
+                    //                foreach (var enc in encounters)
+                    //                {
+                    //                    enc.visit = visitUuid;
+                    //                    enc.encounterDatetime = g.Key;
+
+                    //                    enc.obs.ForEach(ol =>
+                    //                    {
+                    //                        ol.location = enc.location;
+                    //                        ol.obsDatetime = enc.encounterDatetime;
+                    //                        ol.person = personUuid;
+
+                    //                        if (ol.groupMembers.Any())
+                    //                        {
+                    //                            var groupMembers = new List<string>();
+
+                    //                            ol.groupMembers.ForEach(og =>
+                    //                            {
+                    //                                og.location = enc.location;
+                    //                                og.obsDatetime = enc.encounterDatetime;
+                    //                                og.person = personUuid;
+                    //                            });
+                    //                        }
+                    //                    });
+
+                    //                    var encounterUuid = "";
+                    //                    var encuuids = apiHelper.GetData("encounter?todate=" + enc.encounterDatetime + "&patient=" + patientUuid + "&encounterType=" + enc.encounterType + "&fromdate=" + enc.encounterDatetime).Result.results;
+                    //                    if (encuuids.Any())
+                    //                    {
+                    //                        encounterUuid = encuuids[0].uuid;
+                    //                    }
+
+                    //                    if(string.IsNullOrEmpty(encounterUuid))
+                    //                    {
+                    //                        encounterUuid = apiHelper.SendData<ApiResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
+                    //                    }
+                                                                                
+                    //                    if (!string.IsNullOrEmpty(encounterUuid))
+                    //                    {
+                    //                        migrationReport.encounters += 1;
+                    //                        encountersMigrated += 1;
+                    //                        migrationReport.obs += enc.obs.Count();
+                    //                        obsCount += 1;
+
+                    //                        enc.obs.ForEach(l =>
+                    //                        {
+                    //                            if (l.groupMembers.Any())
+                    //                            {
+                    //                                migrationReport.obs += l.groupMembers.Count();
+                    //                                obsCount += 1;
+                    //                            }
+
+                    //                        });
+                    //                    }
+                    //                    else
+                    //                    {
+                    //                        Console.ForegroundColor = ConsoleColor.Red;
+                    //                        Console.WriteLine("Error Migrating Encounter:{0}", Environment.NewLine);
+                    //                        Console.ForegroundColor = ConsoleColor.White;
+                    //                        Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(enc) + Environment.NewLine + Environment.NewLine);
+                    //                    }
+                    //                }
+                    //            }
+
+                    //            var summarry = "Patient " + p.identifiers[0].identifier + " successfully migrated with: " + Environment.NewLine +
+                    //            visitsMigrated.ToString() + " Visits, " + encountersMigrated.ToString() + " Encounters and " + obsCount.ToString() + " Obs";
+
+                    //            Console.ForegroundColor = ConsoleColor.Green;
+                    //            Console.WriteLine(summarry);
+                    //            var d = (DateTime.Now - startD).ToString(@"hh\:mm\:ss");
+                    //            Console.WriteLine("Duration: {0}{1}{2}", d, Environment.NewLine, Environment.NewLine);
+                    //        }
+                    //        else
+                    //        {
+                    //            Console.ForegroundColor = ConsoleColor.Red;
+                    //            Console.WriteLine(Environment.NewLine + Environment.NewLine);
+                    //            Console.WriteLine("Patient " + p.identifiers[0].identifier + " could not be migrated. Please check the error message and make the necessary corrections" + Environment.NewLine);
+                    //        }
+                    //    }
+
+                    //});
 
                     return migrationReport;
                 }
