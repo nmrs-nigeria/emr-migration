@@ -1569,16 +1569,30 @@ namespace Common
                                                 {
                                                     if(float.TryParse(height, out float ht))
                                                     {
+                                                        var hts = "";
+                                                        if (ht > 0)
+                                                        {
+                                                            var heghtX = (ht < 10) ? (ht * 10) : ht > 272 ? 272 : ht;
+                                                            if (heghtX < 10)
+                                                                heghtX = heghtX + 10;
+
+                                                            hts = heghtX.ToString();
+                                                        }
+                                                        else
+                                                        {
+                                                            hts = "10";
+                                                        }
+
                                                         var heightObs = new Obs
                                                         {
                                                             concept = ((int)Concepts.height).ToString(),
-                                                            value = ht != 0 && ht < 10? (ht*10).ToString() : ht == 0? "10" : ht > 272 ? "272" : ht.ToString(),
+                                                            value = hts,
                                                             groupMembers = new List<Obs>()
                                                         };
                                                         heightObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == heightObs.concept).UuId;
                                                         obs.Add(heightObs);
-                                                        vitals.obs.Add(heightObs);
-                                                    }                                                    
+                                                        vitals.obs.Add(heightObs);                                                       
+                                                    }                                                     
                                                 }
                                             }
                                             
