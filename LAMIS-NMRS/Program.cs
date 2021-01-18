@@ -34,7 +34,7 @@ namespace LAMIS_NMRS
 
                 Console.ForegroundColor = ConsoleColor.White;
 
-            ChooseMigrationOption: var migrationOption = ChooseMigrationOption();
+                ChooseMigrationOption: var migrationOption = ChooseMigrationOption();
 
                 if (string.IsNullOrEmpty(migrationOption))
                 {
@@ -42,28 +42,30 @@ namespace LAMIS_NMRS
                 }
 
                 var isValidOption = int.TryParse(migrationOption, out int option);
-                if (!isValidOption || option < 1 || option > 2)
+                if (!isValidOption || option < 1 || option > 3)
                 {
                     goto ChooseMigrationOption;
                 }
 
                 migOption.Option = option;
 
-            getFacilityId: var facility_Id = EnterFacilityId();
-                if (string.IsNullOrEmpty(facility_Id))
-                {
-                    Console.WriteLine(Environment.NewLine + " Please enter a valid integer value:");
-                    goto getFacilityId;
-                }
+                if(option != 3){
+                    getFacilityId: var facility_Id = EnterFacilityId();
+                    if (string.IsNullOrEmpty(facility_Id))
+                    {
+                        Console.WriteLine(Environment.NewLine + " Please enter a valid integer value:");
+                        goto getFacilityId;
+                    }
 
-                var isValidEntry = int.TryParse(facility_Id, out int facilityId);
-                if (!isValidEntry || facilityId < 1)
-                {
-                    Console.WriteLine(Environment.NewLine + " Please enter LAMIS Facility ID:");
-                    goto getFacilityId;
-                }
+                    var isValidEntry = int.TryParse(facility_Id, out int facilityId);
+                    if (!isValidEntry || facilityId < 1)
+                    {
+                        Console.WriteLine(Environment.NewLine + " Please enter LAMIS Facility ID:");
+                        goto getFacilityId;
+                    }
 
-                migOption.Facility = facilityId;
+                    migOption.Facility = facilityId;
+                }
 
                 migOption.FaciltyName = Utilities.GetAppConfigItem("facilty_name");
                 migOption.FacilityDatim_code = Utilities.GetAppConfigItem("facility_datim_code");
@@ -103,36 +105,51 @@ namespace LAMIS_NMRS
                     }
                     #endregion
                 }
-                else
+                else if (option == 2) 
                 {
-                    if (option == 2) //Migrate from files
+                    //Migrate from files
+                    Console.WriteLine(Environment.NewLine + " You have chosen to Migrate Data from Excel (.xlsx) files :::" + Environment.NewLine);
+                    Console.WriteLine(" Please ensure that the correct and full file paths for the variables listed below are provided in the AppSettings.json file as well:" + Environment.NewLine);
+                    Console.WriteLine(" *  patients_Data_File_Path");
+                    Console.WriteLine(" *  clinic_Data_File_Path");
+                    Console.WriteLine(" *  lab_Data_File_Path");
+                    Console.WriteLine(" *  pharmacy_Data_File_Path" + Environment.NewLine);
+                    migOption.PatientsFilePath = Utilities.GetAppConfigItem("patients_Data_File_Path");
+                    migOption.ClinicalsFilePath = Utilities.GetAppConfigItem("clinic_Data_File_Path");
+                    migOption.LabDataFilePath = Utilities.GetAppConfigItem("lab_Data_File_Path");
+                    migOption.PharmacyDataFilePath = Utilities.GetAppConfigItem("pharmacy_Data_File_Path");
+                    if (string.IsNullOrEmpty(migOption.PatientsFilePath) || string.IsNullOrEmpty(migOption.ClinicalsFilePath) || string.IsNullOrEmpty(migOption.LabDataFilePath) || string.IsNullOrEmpty(migOption.PharmacyDataFilePath))
                     {
-                        Console.WriteLine(Environment.NewLine + " You have chosen to Migrate Data from Excel (.xlsx) files :::" + Environment.NewLine);
-                        Console.WriteLine(" Please ensure that the correct and full file paths for the variables listed below are provided in the AppSettings.json file as well:" + Environment.NewLine);
-                        Console.WriteLine(" *  patients_Data_File_Path");
-                        Console.WriteLine(" *  clinic_Data_File_Path");
-                        Console.WriteLine(" *  lab_Data_File_Path");
-                        Console.WriteLine(" *  pharmacy_Data_File_Path" + Environment.NewLine);
-
-                        migOption.PatientsFilePath = Utilities.GetAppConfigItem("patients_Data_File_Path");
-
-                        migOption.ClinicalsFilePath = Utilities.GetAppConfigItem("clinic_Data_File_Path");
-
-                        migOption.LabDataFilePath = Utilities.GetAppConfigItem("lab_Data_File_Path");
-
-                        migOption.PharmacyDataFilePath = Utilities.GetAppConfigItem("pharmacy_Data_File_Path");
-
-                        if (string.IsNullOrEmpty(migOption.PatientsFilePath) || string.IsNullOrEmpty(migOption.ClinicalsFilePath) || string.IsNullOrEmpty(migOption.LabDataFilePath) || string.IsNullOrEmpty(migOption.PharmacyDataFilePath))
-                        {
-                            Console.WriteLine(Environment.NewLine + " One or more required Data File Path(s) were not provided. Please review the AppSettings.json file and ensure all Data File Paths are provided.");
-                            goto ChooseMigrationOption;
-                        }
+                        Console.WriteLine(Environment.NewLine + " One or more required Data File Path(s) were not provided. Please review the AppSettings.json file and ensure all Data File Paths are provided.");
+                        goto ChooseMigrationOption;
                     }
+                }
+                else if(option == 3){
+                    Console.WriteLine(Environment.NewLine + " You have chosen to migrate data from a NMRS database to NMRS PoC database :::" + Environment.NewLine);
+                    Console.WriteLine(" Please ensure that the correct values for the variables listed below are provided in the AppSettings.json file as well:" + Environment.NewLine);
+                    Console.WriteLine(" *  nmrs_Database_Name");
+                    Console.WriteLine(" *  nmrs_Server_Username");
+                    Console.WriteLine(" *  nmrs_Server_Password" + Environment.NewLine);
+
+                    #region NMRS Server Credentials
+                    migOption.LamisDatabaseName = Utilities.GetAppConfigItem("nmrs_Database_Name");
+                    migOption.LamisUsername = Utilities.GetAppConfigItem("nmrs_Server_Username");
+                    migOption.LamisPassword = Utilities.GetAppConfigItem("nmrs_Server_Password");
+
+                    if (string.IsNullOrEmpty(migOption.LamisDatabaseName) || string.IsNullOrEmpty(migOption.LamisUsername) || string.IsNullOrEmpty(migOption.LamisPassword))
+                    {
+                        Console.WriteLine(Environment.NewLine + " Some required variables were not provided. Please review the AppSettings.json file and ensure all variables are provided.");
+                        goto ChooseMigrationOption;
+                    }
+                    #endregion
                 }
 
                 if (migOption.Option == 1)
                 {
                     await new DataBuilder_Read_From_DB(migOption).BuildPatientInfo();
+                }
+                else if(migOption.Option == 3){                    
+                    await new DataBuilder_Read_From_NMRS_DB(migOption).BuildPatientInfo();
                 }
                 else
                 {
@@ -222,9 +239,10 @@ namespace LAMIS_NMRS
             Console.WriteLine("::: Migration Options :::");
             Console.ForegroundColor = ConsoleColor.Green;            
             Console.WriteLine("1. Migrate from a LAMIS Database");
-            Console.WriteLine("2. Migrate Data from Excel (.xlsx) files");            
+            Console.WriteLine("2. Migrate Data from Excel (.xlsx) files");     
+            Console.WriteLine("3. Migrate from NMRS to NMRSPoC");            
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("Which do you prefer? Enter 1 or 2");
+            Console.WriteLine("Which do you prefer? Enter 1, 2 or 3");
             return Console.ReadLine();
         }
 
