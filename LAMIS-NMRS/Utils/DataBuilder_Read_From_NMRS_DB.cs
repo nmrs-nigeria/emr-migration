@@ -207,6 +207,10 @@ namespace Common
                                     }
                                     
                                     patient.person = pd;
+
+                                    //Encounters
+
+                                    //Obs
                                     
                                     // var artCommencement = BuiildArtCommencement(reader);
                                     // if(!string.IsNullOrEmpty(artCommencement.encounterType))
@@ -2770,6 +2774,200 @@ namespace Common
                 return new List<PatientAttributes>();
             }
         }
+        public List<Encounter> BuildPatentEncounter(long patientId)
+        {
+            //get all encounters
+            //for each encounter, get all obs and construct
+
+
+
+
+
+            var artcmmtMap = GetARTCommencementMap();
+
+            var artCommencement = new Encounter
+            {
+                encounterType = "21a8459c-8578-4649-931c-0cf565ee161b", //art commencement
+                encounterDatetime = "",
+                location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
+                form = "38d688ed-a569-4868-b5b2-a2f204a2e572", //care card
+                //provider = "1c3db49d-440a-11e6-a65c-00e04c680037", //super user
+                obs = new List<Obs>()
+            };
+
+            try
+            {
+                //default functional status at start of ART
+                var fStatusObs = new Obs
+                {
+                    concept = ((int)FunctionalStatus.concept).ToString(),
+                    value = ((int)FunctionalStatus.working).ToString(),
+                    groupMembers = new List<Obs>()
+                };
+
+                fStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.concept).UuId;
+                fStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.value).UuId;
+                artCommencement.obs.Add(fStatusObs);
+
+                var date_started = reader["date_started"];
+                var date_registration = reader["date_registration"];
+
+                DateTime artStartDate;
+                if (date_started != null)
+                {
+                    var date_startedStr = date_started.ToString().Trim();
+
+                    if (!string.IsNullOrEmpty(date_startedStr))
+                    {
+                        if (DateTime.TryParse(date_startedStr.Trim(), out artStartDate))
+                        {
+                            var artStrs = artcmmtMap.Where(f => f.VariableName == "date_started");
+                            if (artStrs.Any())
+                            {
+                                var artS = artStrs.ElementAt(0);
+                                var fartStartDateObs = new Obs
+                                {
+                                    concept =artS.OMRSConceptID,
+                                    value = artStartDate.ToString("yyyy-MM-dd"),
+                                    groupMembers = new List<Obs>()
+                                };
+                                fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;                               
+                                artCommencement.obs.Add(fartStartDateObs);
+                            }
+                        }
+
+                    }
+                }
+
+                if (date_registration != null)
+                {
+                    var date_registrationStr = date_registration.ToString().Trim();
+
+                    if (!string.IsNullOrEmpty(date_registrationStr))
+                    {
+                        if (DateTime.TryParse(date_registrationStr.Trim(), out DateTime encDate))
+                        {
+                            artCommencement.encounterDatetime = encDate.ToString("yyyy-MM-dd");
+                        }
+
+                    }
+                }
+
+                var date_birthStr = reader["date_birth"];
+                if (date_birthStr != null)
+                {
+                    var date_birth = date_birthStr.ToString().Trim();
+                    if (!string.IsNullOrEmpty(date_started.ToString()) && !string.IsNullOrEmpty(date_birth))
+                    {
+                        var ageAtStart = Convert.ToDateTime(date_started).Year - Convert.ToDateTime(date_birth).Year;
+
+                        var whoStageObs = new Obs //WHO Stage at start
+                        {
+                            concept =((int)WhoStage.concept).ToString(),
+                            value = ageAtStart > 14 ? ((int)WhoStage.adultStage1).ToString() : ((int)WhoStage.paedStage1).ToString(),
+                            groupMembers = new List<Obs>()
+                        };
+                        whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
+                        whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
+                        artCommencement.obs.Add(whoStageObs);
+                    }
+                }
+
+                var regimenTypeStr = reader["regimentype"];
+                var regimenStr = reader["regimen"];
+                if (regimenTypeStr != null && regimenStr != null)
+                {
+                    var regimenType = regimenTypeStr.ToString();
+                    var regimen = regimenStr.ToString();
+
+                    if (!string.IsNullOrEmpty(regimenType) && !string.IsNullOrEmpty(regimen))
+                    {
+                        var rootWord = regimenType.ToLower().Contains("children") ? "Children" : "Adult";
+                        var rgs = regimens.Where(r => r.Answers == regimen && r.Values.Contains(rootWord)).ToList();
+                        if (rgs.Any())
+                        {
+                            var rg = rgs[0];
+
+                            // Current regimen Line
+                            var currentRegLineObs = new Obs
+                            {
+                                concept =((int)CurrentRegimenLine.concept).ToString(),
+                                value = rg.NMRSQuestionConceptID.ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
+                            currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
+                            artCommencement.obs.Add(currentRegLineObs);
+
+                            // Regimen
+                            var regimenObs = new Obs
+                            {
+                                concept =rg.NMRSQuestionConceptID.ToString(),
+                                value = rg.NMRSAnswerConceptID.ToString(),
+                                groupMembers = new List<Obs>()
+                            };
+                            regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
+                            regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
+                            artCommencement.obs.Add(regimenObs);
+
+                        }
+                    }
+                }
+                return artCommencement;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new Encounter();
+            }
+        }
+        public List<Encounter> GetEncounters(long patientId){
+            var encounters = new List<Encounter>();
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(mysqlconn))
+                {
+                    connection.Open();
+                    
+                    var q = "Select e.*, l.uuid 'encounter_uuid' from encounter e join location l on l.location_id = e.location_id where patient_id = " + patientId + ";";
+
+                    using (MySqlCommand cmd = new MySqlCommand(q, connection))
+                    {
+                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            if (reader.HasRows)
+                            {
+                                while (reader.Read())
+                                {
+                                    var id = reader["encounter_id"];
+                                    if (id != null)
+                                    {
+                                        encounters.Add(new Encounter {
+                                            location = reader["encounter_uuid"].ToString(),
+                                            encounterDatetime = reader[""].ToString(),
+                                            form = reader[""].ToString(),
+                                            encounterType = reader[""].ToString(),
+                                            provider = reader[""].ToString(),
+                                            visit = reader[""].ToString()
+                                        });
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+                }
+                return encounters;
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                Console.WriteLine(message);
+                return new List<Encounter>();
+            }
+        }
+        
         public async Task<MigrationReport> PushData(List<Patient> patients)
         {            
             if(!migrationChecked)
