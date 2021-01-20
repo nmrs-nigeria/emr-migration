@@ -21,9 +21,9 @@ namespace LAMIS_NMRS.Utils
         public MigrateData(MigrationOption migOption)
         {
             _migOption = migOption;
-            var apiUrl = "http://localhost:" 
-                + (_migOption.NmrsServerPort ?? "8080") 
-                + (_migOption.NmrsUrlBasePath ?? "/openmrs") 
+            var apiUrl = "http://localhost:"
+                + (_migOption.NmrsServerPort ?? "8080")
+                + (_migOption.NmrsUrlBasePath ?? "/openmrs")
                 + "/ws/rest/v1/";
             _migOption.BaseUrl = apiUrl;
             mysqlconn = "Server=localhost;Database=" + _migOption.NmrsDatabaseName + ";Uid=" + _migOption.NmrsWebUsername + ";Pwd=" + _migOption.NmrsWebPassword + ";";
@@ -67,7 +67,7 @@ namespace LAMIS_NMRS.Utils
 
                 return dxc;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
                 Console.ForegroundColor = ConsoleColor.Red;
@@ -85,14 +85,14 @@ namespace LAMIS_NMRS.Utils
             var dxc = new List<string>();
             try
             {
-                identifiers.ForEach(identifier => 
+                identifiers.ForEach(identifier =>
                 {
                     var exts = apiHelper.GetData("patient?identifier=" + identifier).Result.results;
                     if (exts.Any())
                     {
                         dxc.Add(exts[0].uuid);
                     }
-                });               
+                });
 
                 return dxc;
             }
@@ -103,7 +103,7 @@ namespace LAMIS_NMRS.Utils
                 Console.WriteLine(Environment.NewLine + Environment.NewLine);
                 Console.WriteLine("An error was encountered trying to check for previous migration data." + Environment.NewLine);
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine("Pleasse ensure that the correct values for the following variables were provided in the AppSettings.json file:" + Environment.NewLine);
+                Console.WriteLine("Please ensure that the correct values for the following variables were provided in the AppSettings.json file:" + Environment.NewLine);
                 Console.WriteLine("nmrs_Web_Username, nmrs_Web_Password, nmrs_Server_Port");
                 Console.WriteLine(message + Environment.NewLine);
                 return dxc;
@@ -116,7 +116,7 @@ namespace LAMIS_NMRS.Utils
                 if (patients.Any())
                 {
                     await Task.Run(() =>
-                    { 
+                    {
                         Parallel.ForEach(patients, p =>
                         {
                             //migrate person, identifiers, address   
@@ -440,7 +440,7 @@ namespace LAMIS_NMRS.Utils
                     //                                migrationReport.obs += l.groupMembers.Count();
                     //                                obsCount += 1;
                     //                            }
-                                                    
+
                     //                        });
                     //                    }
                     //                    else
@@ -787,7 +787,7 @@ namespace LAMIS_NMRS.Utils
                     //        {
                     //            patientUuid = personUuid;
                     //        }
-                            
+
                     //        if (!string.IsNullOrEmpty(patientUuid))
                     //        {
                     //            //migrate patient program
@@ -855,7 +855,7 @@ namespace LAMIS_NMRS.Utils
                     //                {
                     //                    visitUuid = apiHelper.SendData<ApiResponse, Visit>(URLConstants.visit, visit).Result.uuid;
                     //                }
-                                    
+
                     //                if (string.IsNullOrEmpty(visitUuid))
                     //                {                                        
                     //                    Console.ForegroundColor = ConsoleColor.Red;
@@ -902,7 +902,7 @@ namespace LAMIS_NMRS.Utils
                     //                    {
                     //                        encounterUuid = apiHelper.SendData<ApiResponse, Encounter>(URLConstants.encounter, enc).Result.uuid;
                     //                    }
-                                                                                
+
                     //                    if (!string.IsNullOrEmpty(encounterUuid))
                     //                    {
                     //                        migrationReport.encounters += 1;

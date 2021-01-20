@@ -18,8 +18,10 @@ namespace LAMIS_NMRS.Utils
     {
         public static string GetAppConfigItem(string itemKey)
         {
-            var builder = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+            var paths = Directory.GetCurrentDirectory();
+            var builder = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("AppSettings.json", optional: true, reloadOnChange: true);
             var configuration = builder.Build();
             if (configuration.GetSection(itemKey) != null)
             {
@@ -150,5 +152,5 @@ namespace LAMIS_NMRS.Utils
                 return new List<NmrsConcept>();
             }
         }
-    }   
+    }
 }

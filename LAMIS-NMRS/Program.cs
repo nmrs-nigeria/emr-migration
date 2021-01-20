@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace LAMIS_NMRS
 {
     class Program
-    {   
+    {
         [MTAThread]
         static async Task Main(string[] args)
         {
@@ -34,7 +34,7 @@ namespace LAMIS_NMRS
 
                 Console.ForegroundColor = ConsoleColor.White;
 
-                ChooseMigrationOption: var migrationOption = ChooseMigrationOption();
+            ChooseMigrationOption: var migrationOption = "3";// ChooseMigrationOption();
 
                 if (string.IsNullOrEmpty(migrationOption))
                 {
@@ -49,8 +49,9 @@ namespace LAMIS_NMRS
 
                 migOption.Option = option;
 
-                if(option != 3){
-                    getFacilityId: var facility_Id = EnterFacilityId();
+                if (option != 3)
+                {
+                getFacilityId: var facility_Id = EnterFacilityId();
                     if (string.IsNullOrEmpty(facility_Id))
                     {
                         Console.WriteLine(Environment.NewLine + " Please enter a valid integer value:");
@@ -105,7 +106,7 @@ namespace LAMIS_NMRS
                     }
                     #endregion
                 }
-                else if (option == 2) 
+                else if (option == 2)
                 {
                     //Migrate from files
                     Console.WriteLine(Environment.NewLine + " You have chosen to Migrate Data from Excel (.xlsx) files :::" + Environment.NewLine);
@@ -124,7 +125,8 @@ namespace LAMIS_NMRS
                         goto ChooseMigrationOption;
                     }
                 }
-                else if(option == 3){
+                else if (option == 3)
+                {
                     Console.WriteLine(Environment.NewLine + " You have chosen to migrate data from a NMRS database to NMRS PoC database :::" + Environment.NewLine);
                     Console.WriteLine(" Please ensure that the correct values for the variables listed below are provided in the AppSettings.json file as well:" + Environment.NewLine);
                     Console.WriteLine(" *  nmrs_Database_Name");
@@ -148,7 +150,8 @@ namespace LAMIS_NMRS
                 {
                     await new DataBuilder_Read_From_DB(migOption).BuildPatientInfo();
                 }
-                else if(migOption.Option == 3){                    
+                else if (migOption.Option == 3)
+                {
                     await new DataBuilder_Read_From_NMRS_DB(migOption).BuildPatientInfo();
                 }
                 else
@@ -223,7 +226,7 @@ namespace LAMIS_NMRS
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.ReadLine();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.White;
                 var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
@@ -237,10 +240,10 @@ namespace LAMIS_NMRS
             // Prompt user to select to either migrate data from CSV or Database
             Console.WriteLine(string.Empty);
             Console.WriteLine("::: Migration Options :::");
-            Console.ForegroundColor = ConsoleColor.Green;            
+            Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("1. Migrate from a LAMIS Database");
-            Console.WriteLine("2. Migrate Data from Excel (.xlsx) files");     
-            Console.WriteLine("3. Migrate from NMRS to NMRSPoC");            
+            Console.WriteLine("2. Migrate Data from Excel (.xlsx) files");
+            Console.WriteLine("3. Migrate from NMRS to NMRSPoC");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Which do you prefer? Enter 1, 2 or 3");
             return Console.ReadLine();
