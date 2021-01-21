@@ -145,7 +145,12 @@ namespace LAMIS_NMRS
                     }
                     #endregion
                 }
-
+                var locatin = new Location
+                {
+                    //property = "aff27d58-a15c-49a6-9beb-d30dcfc0c66e", //location id = 8, uuid
+                    name = migOption.FaciltyName
+                };
+                new MigrateData(migOption).UpdateFacility("location/aff27d58-a15c-49a6-9beb-d30dcfc0c66e", locatin);
                 if (migOption.Option == 1)
                 {
                     await new DataBuilder_Read_From_DB(migOption).BuildPatientInfo();

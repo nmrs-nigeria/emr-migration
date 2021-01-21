@@ -188,19 +188,19 @@ namespace Common
                                             {
                                                 preferred = reader["address_preffered"].ToString() == "1" ? true : false,
                                                 address1 = addres1,
-                                                address2 = reader["address2"].ToString(),
-                                                address3 = reader["address3"].ToString(),
-                                                address4 = reader["address4"].ToString(),
-                                                address5 = reader["address5"].ToString(),
-                                                address6 = reader["address6"].ToString(),
+                                                // address2 = reader["address2"].ToString(),
+                                                // address3 = reader["address3"].ToString(),
+                                                // address4 = reader["address4"].ToString(),
+                                                // address5 = reader["address5"].ToString(),
+                                                // address6 = reader["address6"].ToString(),
                                                 cityVillage = reader["city_village"].ToString(),
                                                 country = reader["country"].ToString(),
                                                 stateProvince = reader["state_province"].ToString(),
-                                                postalCode = reader["postal_code"].ToString(),
-                                                startDate = reader["start_date"].ToString(),
-                                                endDate = reader["end_date"].ToString(),
-                                                latitude = reader["latitude"].ToString(),
-                                                longitude = reader["longitude"].ToString()
+                                                postalCode = reader["postal_code"].ToString()
+                                                // startDate = reader["start_date"].ToString(),
+                                                // endDate = reader["end_date"].ToString(),
+                                                // latitude = reader["latitude"].ToString(),
+                                                // longitude = reader["longitude"].ToString()
                                             };
                                             pd.addresses = new List<Personaddress> { address };
                                         }
@@ -208,7 +208,9 @@ namespace Common
 
                                     patient.person = pd;
 
-                                    var artCommencement = BuiildArtCommencement(reader);
+                                    //var artCommencement = BuiildArtCommencement(reader);
+
+                                    patient.Encounters.AddRange(GetEncounters(patientId));
                                     // if(!string.IsNullOrEmpty(artCommencement.encounterType))
                                     // {
                                     //     patient.Encounters.Add(artCommencement);
@@ -2713,6 +2715,8 @@ namespace Common
                                             preferred = reader["preferred"].ToString() == "1" ? true : false,
                                             location = "21652a63-fd37-414e-822f-1b76fe64bc05"
                                         });
+
+
                                     }
 
                                 }
@@ -2774,154 +2778,43 @@ namespace Common
                 return new List<PatientAttributes>();
             }
         }
-        public List<Encounter> BuildPatentEncounter(long patientId)
+        public async Task<MigrationReport> PushData(List<Patient> patients)
         {
-            //get all encounters
-            //for each encounter, get all obs and construct
-
-
-
-
-
-            var artcmmtMap = GetARTCommencementMap();
-
-            var artCommencement = new Encounter
+            if (!migrationChecked)
             {
-                encounterType = "21a8459c-8578-4649-931c-0cf565ee161b", //art commencement
-                encounterDatetime = "",
-                location = "b1a8b05e-3542-4037-bbd3-998ee9c40574", //using in-patient ward for now
-                form = "38d688ed-a569-4868-b5b2-a2f204a2e572", //care card
-                //provider = "1c3db49d-440a-11e6-a65c-00e04c680037", //super user
-                obs = new List<Obs>()
-            };
-
-            try
-            {
-                //default functional status at start of ART
-                var fStatusObs = new Obs
+                //Check if migration has been done before to determine if fresh or update migration needs to be conducted at this time
+                //only do this with the first 5 identifiers in this list
+                var identifiers = new List<string>();
+                var cnt = 0;
+                patients.ForEach(id =>
                 {
-                    concept = ((int)FunctionalStatus.concept).ToString(),
-                    value = ((int)FunctionalStatus.working).ToString(),
-                    groupMembers = new List<Obs>()
-                };
-
-                fStatusObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.concept).UuId;
-                fStatusObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == fStatusObs.value).UuId;
-                artCommencement.obs.Add(fStatusObs);
-
-                var date_started = reader["date_started"];
-                var date_registration = reader["date_registration"];
-
-                DateTime artStartDate;
-                if (date_started != null)
-                {
-                    var date_startedStr = date_started.ToString().Trim();
-
-                    if (!string.IsNullOrEmpty(date_startedStr))
+                    if (cnt < 5)
                     {
-                        if (DateTime.TryParse(date_startedStr.Trim(), out artStartDate))
-                        {
-                            var artStrs = artcmmtMap.Where(f => f.VariableName == "date_started");
-                            if (artStrs.Any())
-                            {
-                                var artS = artStrs.ElementAt(0);
-                                var fartStartDateObs = new Obs
-                                {
-                                    concept = artS.OMRSConceptID,
-                                    value = artStartDate.ToString("yyyy-MM-dd"),
-                                    groupMembers = new List<Obs>()
-                                };
-                                fartStartDateObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == fartStartDateObs.concept).UuId;
-                                artCommencement.obs.Add(fartStartDateObs);
-                            }
-                        }
-
+                        identifiers.Add(id.identifiers[0].identifier);
+                        cnt += 1;
                     }
-                }
+                });
 
-                if (date_registration != null)
+                var chkMgg = new MigrateData(_migOption).CheckExistingMigration(identifiers);
+
+                if (chkMgg.Any())
                 {
-                    var date_registrationStr = date_registration.ToString().Trim();
-
-                    if (!string.IsNullOrEmpty(date_registrationStr))
-                    {
-                        if (DateTime.TryParse(date_registrationStr.Trim(), out DateTime encDate))
-                        {
-                            artCommencement.encounterDatetime = encDate.ToString("yyyy-MM-dd");
-                        }
-
-                    }
+                    migrationHappend = true;
                 }
-
-                var date_birthStr = reader["date_birth"];
-                if (date_birthStr != null)
-                {
-                    var date_birth = date_birthStr.ToString().Trim();
-                    if (!string.IsNullOrEmpty(date_started.ToString()) && !string.IsNullOrEmpty(date_birth))
-                    {
-                        var ageAtStart = Convert.ToDateTime(date_started).Year - Convert.ToDateTime(date_birth).Year;
-
-                        var whoStageObs = new Obs //WHO Stage at start
-                        {
-                            concept = ((int)WhoStage.concept).ToString(),
-                            value = ageAtStart > 14 ? ((int)WhoStage.adultStage1).ToString() : ((int)WhoStage.paedStage1).ToString(),
-                            groupMembers = new List<Obs>()
-                        };
-                        whoStageObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.concept).UuId;
-                        whoStageObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == whoStageObs.value).UuId;
-                        artCommencement.obs.Add(whoStageObs);
-                    }
-                }
-
-                var regimenTypeStr = reader["regimentype"];
-                var regimenStr = reader["regimen"];
-                if (regimenTypeStr != null && regimenStr != null)
-                {
-                    var regimenType = regimenTypeStr.ToString();
-                    var regimen = regimenStr.ToString();
-
-                    if (!string.IsNullOrEmpty(regimenType) && !string.IsNullOrEmpty(regimen))
-                    {
-                        var rootWord = regimenType.ToLower().Contains("children") ? "Children" : "Adult";
-                        var rgs = regimens.Where(r => r.Answers == regimen && r.Values.Contains(rootWord)).ToList();
-                        if (rgs.Any())
-                        {
-                            var rg = rgs[0];
-
-                            // Current regimen Line
-                            var currentRegLineObs = new Obs
-                            {
-                                concept = ((int)CurrentRegimenLine.concept).ToString(),
-                                value = rg.NMRSQuestionConceptID.ToString(),
-                                groupMembers = new List<Obs>()
-                            };
-                            currentRegLineObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.concept).UuId;
-                            currentRegLineObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == currentRegLineObs.value).UuId;
-                            artCommencement.obs.Add(currentRegLineObs);
-
-                            // Regimen
-                            var regimenObs = new Obs
-                            {
-                                concept = rg.NMRSQuestionConceptID.ToString(),
-                                value = rg.NMRSAnswerConceptID.ToString(),
-                                groupMembers = new List<Obs>()
-                            };
-                            regimenObs.concept = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.concept).UuId;
-                            regimenObs.value = nmsConcepts.FirstOrDefault(c => c.ConceptId == regimenObs.value).UuId;
-                            artCommencement.obs.Add(regimenObs);
-
-                        }
-                    }
-                }
-                return artCommencement;
+                migrationChecked = true;
             }
-            catch (Exception ex)
+
+            var migratedDataReport = migrationHappend ? await new MigrateData(_migOption).UpdateMigration(patients) : await new MigrateData(_migOption).Migrate(patients);
+            if (migratedDataReport.patients > 0)
             {
-                var message = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                Console.WriteLine(message);
-                return new Encounter();
+                migrationReport.patients += migratedDataReport.patients;
+                migrationReport.encounters += migratedDataReport.encounters;
+                migrationReport.visit += migratedDataReport.visit;
+                migrationReport.obs += migratedDataReport.obs;
             }
+            return migratedDataReport;
         }
+
         public List<Encounter> GetEncounters(long patientId)
         {
             var encounters = new List<Encounter>();
@@ -2930,8 +2823,14 @@ namespace Common
                 using (MySqlConnection connection = new MySqlConnection(mysqlconn))
                 {
                     connection.Open();
-
-                    var q = "Select e.*, l.uuid 'encounter_uuid' from encounter e join location l on l.location_id = e.location_id where patient_id = " + patientId + ";";
+                    var q = "Select " +
+                        "e.encounter_datetime, l.uuid 'encounter_uuid'," +
+                        "f.uuid 'form', l.uuid 'location', v.uuid 'visit', et.uuid 'encounter' " +
+                        "from encounter e " +
+                        "join encounter_type et on et.encounter_type_id = e.encounter_type " +
+                        "join location l on l.location_id = e.location_id " +
+                        "join form f on f.form_id = e.form_id " +
+                        "join visit v on v.visit_id = e.visit_id where e.patient_id = " + patientId + ";";
 
                     using (MySqlCommand cmd = new MySqlCommand(q, connection))
                     {
@@ -2941,17 +2840,18 @@ namespace Common
                             {
                                 while (reader.Read())
                                 {
-                                    var id = reader["encounter_id"];
+                                    var id = reader["encounter"];
                                     if (id != null)
                                     {
                                         encounters.Add(new Encounter
                                         {
-                                            location = reader["encounter_uuid"].ToString(),
-                                            encounterDatetime = reader[""].ToString(),
-                                            form = reader[""].ToString(),
-                                            encounterType = reader[""].ToString(),
-                                            provider = reader[""].ToString(),
-                                            visit = reader[""].ToString()
+                                            location = reader["location"].ToString(),
+                                            encounterDatetime = reader["encounter_datetime"].ToString(),
+                                            form = reader["form"].ToString(),
+                                            encounterType = reader["encounter"].ToString(),
+                                            provider = "1c3db49d-440a-11e6-a65c-00e04c680037",// reader[""].ToString(),
+                                            visit = reader["visit"].ToString(),
+
                                         });
                                     }
 
@@ -2969,42 +2869,5 @@ namespace Common
                 return new List<Encounter>();
             }
         }
-
     }
-    public async Task<MigrationReport> PushData(List<Patient> patients)
-    {
-        if (!migrationChecked)
-        {
-            //Check if migration has been done before to determine if fresh or update migration needs to be conducted at this time
-            //only do this with the first 5 identifiers in this list
-            var identifiers = new List<string>();
-            var cnt = 0;
-            patients.ForEach(id =>
-            {
-                if (cnt < 5)
-                {
-                    identifiers.Add(id.identifiers[0].identifier);
-                    cnt += 1;
-                }
-            });
-
-            var chkMgg = new MigrateData(_migOption).CheckExistingMigration(identifiers);
-
-            if (chkMgg.Any())
-            {
-                migrationHappend = true;
-            }
-            migrationChecked = true;
-        }
-
-        var migratedDataReport = migrationHappend ? await new MigrateData(_migOption).UpdateMigration(patients) : await new MigrateData(_migOption).Migrate(patients);
-        if (migratedDataReport.patients > 0)
-        {
-            migrationReport.patients += migratedDataReport.patients;
-            migrationReport.encounters += migratedDataReport.encounters;
-            migrationReport.visit += migratedDataReport.visit;
-            migrationReport.obs += migratedDataReport.obs;
-        }
-        return migratedDataReport;
-    }
-
+}
