@@ -911,10 +911,10 @@ namespace Common
                                 conceptId = (int)MaritalStatus.Divorced;
                                 break;
                             case "Single":
-                                conceptId = (int)MaritalStatus.Single;
+                                conceptId = (int)MaritalStatus.Never_Married;
                                 break;
                             default:
-                                conceptId = (int)MaritalStatus.Single;
+                                conceptId = (int)MaritalStatus.Never_Married;
                                 break;
                         }
 

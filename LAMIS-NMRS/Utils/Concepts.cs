@@ -195,13 +195,17 @@ namespace LAMIS_NMRS.Utils
     public enum MaritalStatus
     {
         concept = 1054,
-        Single = 5555,
-        Married = 160536,
-        Divorced = 1058,
         Separated = 1056,
-        Cohabiting = 1060,
-        Widow_er = 1059
+        Never_Married = 1057,
+        Divorced = 1058,
+        Widow_er = 1059,
+        Living_with_partner = 1060,
+        Married = 5555,
+        Lives_alone = 135704,
+        Other = 5622
     }
+
+    
 
     public enum EducationLevel
     {
